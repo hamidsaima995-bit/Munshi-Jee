@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<title>Munshi Jee — Business Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&family=Outfit:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu&display=swap');
+  :root{
+    --ink:#0d0b07;--ink-2:#15110a;--ink-3:#1f1810;--ink-4:#2a2014;
+    --gold:#e7b53c;--gold-soft:#f7dd9a;--gold-deep:#a9781f;
+    --cream:#f6efe0;--cream-dim:#b3a890;--line:rgba(231,181,60,.16);
+    --green:#5fd08a;--red:#e8765f;--blue:#6ba8e8;
+    --r:20px;
+    --shadow:0 18px 50px rgba(0,0,0,.55);
+    --shadow-gold:0 10px 30px rgba(231,181,60,.32);
+    --inset:inset 0 1px 2px rgba(255,255,255,.35), inset 0 -2px 6px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{
+    background:
+      radial-gradient(1000px 600px at 85% -10%,rgba(231,181,60,.12),transparent 55%),
+      radial-gradient(800px 500px at -10% 110%,rgba(231,181,60,.07),transparent 50%),
+      var(--ink);
+    color:var(--cream);font-family:'Outfit',system-ui,sans-serif;line-height:1.5;
+    min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .hidden{display:none!important;}
+
+  /* ════════ LOGIN / AUTH ════════ */
+  #authScreen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:radial-gradient(900px 600px at 50% 0%,rgba(231,181,60,.1),transparent 60%),var(--ink);}
+  .auth-card{width:100%;max-width:380px;background:linear-gradient(165deg,var(--ink-2),var(--ink-3));
+    border:1px solid var(--line);border-radius:28px;padding:34px 26px;box-shadow:var(--shadow);
+    transform:perspective(1000px) rotateX(1deg);}
+  .logo-3d{width:78px;height:78px;margin:0 auto 16px;border-radius:22px;
+    background:linear-gradient(145deg,var(--gold-soft),var(--gold) 50%,var(--gold-deep));
+    box-shadow:var(--shadow-gold),var(--inset);display:grid;place-items:center;
+    transform:perspective(600px) rotateX(8deg) rotateY(-6deg);}
+  .auth-title{text-align:center;font-family:'Fraunces',serif;font-weight:900;font-size:1.9rem;letter-spacing:-.5px;}
+  .auth-title span{color:var(--gold);}
+  .auth-urdu{text-align:center;font-family:'Noto Nastaliq Urdu',serif;color:var(--gold-soft);font-size:1.15rem;line-height:2;}
+  .auth-sub{text-align:center;font-size:.66rem;letter-spacing:2.5px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:24px;}
+  .field{margin-bottom:14px;}
+  .field label{font-size:.68rem;letter-spacing:1.5px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:7px;}
+  .fbox{display:flex;align-items:center;background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:13px 15px;gap:11px;transition:border .2s,box-shadow .2s;}
+  .fbox:focus-within{border-color:var(--gold-deep);box-shadow:0 0 0 3px rgba(231,181,60,.12);}
+  .fbox .ic{font-size:1.05rem;opacity:.7;}
+  .fbox input{background:none;border:none;color:var(--cream);font-size:.95rem;flex:1;outline:none;font-family:inherit;}
+  .fbox .eye{cursor:pointer;font-size:1.1rem;opacity:.6;user-select:none;}
+  .fbox .eye:hover{opacity:1;}
+  .btn{width:100%;border:none;border-radius:14px;padding:15px;font-weight:700;font-size:.98rem;font-family:inherit;cursor:pointer;letter-spacing:.3px;transition:transform .15s,box-shadow .2s;}
+  .btn:active{transform:scale(.97);}
+  .btn-gold{background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#2a1e07;box-shadow:var(--shadow-gold);margin-top:6px;}
+  .btn-ghost{background:var(--ink-3);color:var(--cream);border:1px solid var(--line);}
+  .auth-links{display:flex;justify-content:space-between;margin-top:18px;font-size:.8rem;}
+  .auth-links a{color:var(--gold);text-decoration:none;cursor:pointer;}
+  .auth-links a.muted{color:var(--cream-dim);}
+  .auth-err{background:rgba(232,118,95,.12);border:1px solid rgba(232,118,95,.3);color:var(--red);
+    font-size:.8rem;padding:10px 13px;border-radius:11px;margin-bottom:14px;text-align:center;}
+  .auth-switch{text-align:center;margin-top:20px;font-size:.85rem;color:var(--cream-dim);}
+  .auth-switch a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
+  .btn-google{background:#fff;color:#3c4043;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:6px;}
+  .or-line{display:flex;align-items:center;gap:12px;margin:16px 0 6px;color:var(--cream-dim);font-size:.72rem;}
+  .or-line::before,.or-line::after{content:"";flex:1;height:1px;background:var(--line);}
+  .logout-x{cursor:pointer;font-size:.72rem;color:var(--cream-dim);border:1px solid var(--line);border-radius:10px;padding:6px 11px;background:var(--ink-3);}
+
+  /* ════════ APP SHELL ════════ */
+  #appScreen{max-width:760px;margin:0 auto;padding:0 16px 100px;}
+  .appbar{display:flex;align-items:center;justify-content:space-between;padding:18px 4px 14px;position:sticky;top:0;
+    background:linear-gradient(var(--ink) 70%,transparent);z-index:20;}
+  .appbar .hi{font-size:.78rem;color:var(--cream-dim);}
+  .appbar .hi b{display:block;font-size:1.1rem;color:var(--cream);font-weight:600;font-family:'Fraunces',serif;}
+  .logo-sm{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,var(--gold-soft),var(--gold) 50%,var(--gold-deep));box-shadow:var(--shadow-gold),var(--inset);display:grid;place-items:center;}
+
+  .view{animation:fade .35s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+  /* stat cards 3D */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .stat{background:linear-gradient(160deg,var(--ink-3),var(--ink-2));border:1px solid var(--line);border-radius:18px;padding:16px;
+    position:relative;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.3);transition:transform .2s;}
+  .stat:active{transform:scale(.98);}
+  .stat::after{content:"";position:absolute;top:-30%;right:-20%;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(231,181,60,.1),transparent 70%);}
+  .stat .lab{font-size:.62rem;letter-spacing:1px;color:var(--cream-dim);text-transform:uppercase;}
+  .stat .val{font-family:'Fraunces',serif;font-weight:900;font-size:1.55rem;margin-top:5px;}
+  .stat .val.g{color:var(--gold);}.stat .val.green{color:var(--green);}.stat .val.red{color:var(--red);}
+  .stat .sub{font-size:.64rem;color:var(--cream-dim);margin-top:3px;}
+  .stat.wide{grid-column:1/3;}
+
+  .sec-title{font-family:'Fraunces',serif;font-weight:600;font-size:1.05rem;margin:22px 4px 12px;display:flex;align-items:center;justify-content:space-between;}
+  .sec-title a{font-size:.75rem;color:var(--gold);text-decoration:none;font-family:'Outfit';}
+
+  /* quick actions 3D */
+  .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px;}
+  .qbtn{background:linear-gradient(160deg,var(--ink-3),var(--ink-2));border:1px solid var(--line);border-radius:16px;padding:14px 6px;text-align:center;cursor:pointer;transition:transform .15s,border .2s;box-shadow:0 6px 16px rgba(0,0,0,.25);}
+  .qbtn:active{transform:translateY(2px) scale(.97);}
+  .qbtn .ic{font-size:1.4rem;display:block;margin-bottom:6px;}
+  .qbtn .t{font-size:.64rem;color:var(--cream-dim);font-weight:500;}
+
+  /* list rows */
+  .card-list{background:linear-gradient(160deg,var(--ink-2),var(--ink-3));border:1px solid var(--line);border-radius:18px;padding:6px 16px;}
+  .row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;}
+  .row:last-child{border-bottom:none;}
+  .row .av{width:38px;height:38px;border-radius:12px;background:var(--ink-4);display:grid;place-items:center;font-size:16px;flex-shrink:0;box-shadow:var(--inset);}
+  .row .mid{flex:1;min-width:0;}
+  .row .mid b{font-size:.88rem;font-weight:600;display:block;}
+  .row .mid small{font-size:.7rem;color:var(--cream-dim);}
+  .row .amt{font-size:.88rem;font-weight:700;text-align:right;}
+  .row .amt.red{color:var(--red);}.row .amt.green{color:var(--green);}
+  .row .amt small{display:block;font-size:.6rem;color:var(--cream-dim);font-weight:400;}
+
+  /* tab bar 3D */
+  .tabbar{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-around;padding:10px 8px 14px;
+    background:linear-gradient(transparent,var(--ink-2) 30%);backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:30;}
+  .tab{text-align:center;font-size:.58rem;color:var(--cream-dim);cursor:pointer;padding:4px 12px;border-radius:12px;transition:color .2s;}
+  .tab .ic{font-size:1.3rem;display:block;margin-bottom:2px;}
+  .tab.active{color:var(--gold);}
+  .tab.active .ic{filter:drop-shadow(0 0 8px rgba(231,181,60,.5));}
+  .tab.munshi .ic{background:linear-gradient(145deg,var(--gold-soft),var(--gold-deep));width:46px;height:46px;border-radius:50%;display:grid;place-items:center;margin:-18px auto 2px;box-shadow:var(--shadow-gold),var(--inset);font-size:1.3rem;}
+
+  /* empty / placeholder views */
+  .placeholder{text-align:center;padding:60px 20px;color:var(--cream-dim);}
+  .placeholder .pic{font-size:3rem;margin-bottom:14px;opacity:.5;}
+  .placeholder h3{font-family:'Fraunces',serif;color:var(--cream);font-weight:600;margin-bottom:6px;}
+  .placeholder p{font-size:.85rem;}
+
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink-4);
+    border:1px solid var(--gold-deep);color:var(--cream);padding:12px 22px;border-radius:30px;font-size:.85rem;
+    opacity:0;pointer-events:none;transition:.3s;z-index:50;box-shadow:var(--shadow);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ════════ KHATA MODULE ════════ */
+  .search-box{display:flex;align-items:center;background:var(--ink-3);border:1px solid var(--line);border-radius:14px;padding:11px 14px;gap:10px;margin-bottom:12px;}
+  .search-box input{background:none;border:none;color:var(--cream);font-size:.9rem;flex:1;outline:none;font-family:inherit;}
+  .filter-row{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;}
+  .fpill{background:var(--ink-3);border:1px solid var(--line);border-radius:20px;padding:8px 16px;font-size:.74rem;color:var(--cream-dim);white-space:nowrap;cursor:pointer;transition:.2s;}
+  .fpill.active{background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#2a1e07;font-weight:600;border-color:transparent;}
+  .add-fab{position:fixed;bottom:84px;right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(145deg,var(--gold-soft),var(--gold-deep));border:none;color:#2a1e07;font-size:1.8rem;box-shadow:var(--shadow-gold),var(--inset);cursor:pointer;z-index:35;display:grid;place-items:center;}
+  .add-fab:active{transform:scale(.92);}
+
+  /* khata detail */
+  .khata-hero{background:linear-gradient(150deg,var(--gold-deep),var(--ink-3) 80%);border-radius:22px;padding:20px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .khata-hero::after{content:"";position:absolute;top:-40%;right:-15%;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(247,221,154,.18),transparent 70%);}
+  .khata-hero .nm{font-family:'Fraunces',serif;font-weight:900;font-size:1.4rem;}
+  .khata-hero .meta{font-size:.78rem;opacity:.85;margin-top:2px;}
+  .khata-hero .bal{font-family:'Fraunces',serif;font-weight:900;font-size:2.2rem;color:#fff;margin-top:14px;}
+  .khata-hero .bal small{font-size:.66rem;font-weight:400;display:block;opacity:.8;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;}
+  .chip{display:inline-block;font-size:.64rem;padding:5px 12px;border-radius:20px;background:rgba(0,0,0,.3);color:var(--gold-soft);margin-top:10px;}
+  .warn-box{background:rgba(232,118,95,.12);border:1px solid rgba(232,118,95,.3);border-radius:13px;padding:12px 14px;font-size:.78rem;color:var(--red);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .act-row{display:flex;gap:10px;margin-bottom:14px;}
+  .wa-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:#1faf54;color:#fff;border:none;border-radius:13px;padding:13px;font-weight:600;font-size:.84rem;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(31,175,84,.3);}
+  .sms-btn2{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--ink-3);color:var(--cream);border:1px solid var(--line);border-radius:13px;padding:13px;font-weight:600;font-size:.84rem;font-family:inherit;cursor:pointer;}
+  .wa-btn:active,.sms-btn2:active{transform:scale(.97);}
+  .ledger-add{display:flex;gap:8px;margin:12px 0;}
+  .ledger-add button{flex:1;border:none;border-radius:12px;padding:12px;font-weight:600;font-size:.82rem;font-family:inherit;cursor:pointer;}
+  .l-diya{background:rgba(232,118,95,.15);color:var(--red);border:1px solid rgba(232,118,95,.3)!important;}
+  .l-mila{background:rgba(95,208,138,.15);color:var(--green);border:1px solid rgba(95,208,138,.3)!important;}
+  .back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--gold);font-size:.85rem;cursor:pointer;margin-bottom:12px;background:none;border:none;font-family:inherit;}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fade .25s;}
+  .modal{background:linear-gradient(165deg,var(--ink-2),var(--ink-3));border:1px solid var(--line);border-radius:26px 26px 0 0;width:100%;max-width:480px;padding:24px 20px 30px;box-shadow:var(--shadow);animation:slideUp .3s;max-height:90vh;overflow-y:auto;}
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:none;}}
+  .modal h3{font-family:'Fraunces',serif;font-weight:600;font-size:1.3rem;margin-bottom:4px;}
+  .modal .msub{font-size:.8rem;color:var(--cream-dim);margin-bottom:18px;}
+  .modal .mclose{float:right;font-size:1.4rem;color:var(--cream-dim);cursor:pointer;line-height:1;}
+  .seg{display:flex;gap:8px;margin-bottom:14px;}
+  .seg button{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:11px;padding:10px;font-size:.78rem;color:var(--cream-dim);font-family:inherit;cursor:pointer;}
+  .seg button.on{background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#2a1e07;font-weight:600;border-color:transparent;}
+  .time-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .time-grid button{background:var(--ink);border:1px solid var(--line);border-radius:11px;padding:11px 6px;font-size:.74rem;color:var(--cream-dim);font-family:inherit;cursor:pointer;}
+  .time-grid button.on{background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#2a1e07;font-weight:600;border-color:transparent;}
+
+  /* ════════ PRODUCTS / STOCK ════════ */
+  .prod-card{background:linear-gradient(160deg,var(--ink-2),var(--ink-3));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:13px;box-shadow:0 6px 16px rgba(0,0,0,.25);}
+  .prod-card .pic{width:46px;height:46px;border-radius:13px;background:var(--ink-4);display:grid;place-items:center;font-size:20px;box-shadow:var(--inset);flex-shrink:0;}
+  .prod-card .info{flex:1;min-width:0;}
+  .prod-card .info b{font-size:.92rem;display:block;}
+  .prod-card .info small{font-size:.7rem;color:var(--cream-dim);}
+  .prod-card .right{text-align:right;}
+  .prod-card .right .rate{font-size:.9rem;font-weight:700;color:var(--gold);}
+  .stock-pill{display:inline-block;font-size:.62rem;padding:3px 9px;border-radius:12px;margin-top:4px;font-weight:600;}
+  .stock-ok{background:rgba(95,208,138,.15);color:var(--green);}
+  .stock-low{background:rgba(232,118,95,.15);color:var(--red);}
+  .unit-hint{font-size:.64rem;color:var(--cream-dim);margin-top:2px;}
+
+  /* billing */
+  .bill-line{background:linear-gradient(160deg,var(--ink-2),var(--ink-3));border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px;}
+  .bill-line .top{display:flex;justify-content:space-between;align-items:center;}
+  .bill-line .top b{font-size:.86rem;}
+  .bill-line .top .del{color:var(--red);font-size:1rem;cursor:pointer;}
+  .qty-row{display:flex;gap:8px;margin-top:9px;align-items:center;}
+  .qty-box{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:6px;}
+  .qty-box label{font-size:.58rem;color:var(--cream-dim);text-transform:uppercase;}
+  .qty-box input{background:none;border:none;color:var(--cream);font-size:.9rem;width:100%;outline:none;font-family:inherit;text-align:center;}
+  .calc-hint{background:rgba(231,181,60,.08);border:1px dashed var(--gold-deep);border-radius:10px;padding:8px 11px;font-size:.7rem;color:var(--gold-soft);margin-top:9px;}
+  .bill-total{background:linear-gradient(135deg,var(--ink-4),var(--ink-3));border:1px solid var(--line);border-radius:14px;padding:15px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;}
+  .bill-total .l{font-size:.7rem;color:var(--cream-dim);text-transform:uppercase;letter-spacing:1px;}
+  .bill-total .v{font-family:'Fraunces',serif;font-weight:900;font-size:1.7rem;color:var(--gold);}
+  .add-prod-btn{width:100%;background:var(--ink-3);border:1px dashed var(--gold-deep);color:var(--gold);border-radius:13px;padding:13px;font-weight:600;font-size:.85rem;font-family:inherit;cursor:pointer;margin-bottom:6px;}
+  .seg-pick button{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:11px;padding:11px;font-size:.8rem;color:var(--cream-dim);font-family:inherit;cursor:pointer;}
+  .seg-pick button.on{background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#2a1e07;font-weight:600;border-color:transparent;}
+  .pick-row{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;gap:11px;}
+  .pick-row:last-child{border:none;}
+  .pick-row .av{width:36px;height:36px;border-radius:11px;background:var(--ink-4);display:grid;place-items:center;font-size:16px;}
+  .pick-row b{font-size:.86rem;display:block;}
+  .pick-row small{font-size:.68rem;color:var(--cream-dim);}
+</style>
+</head>
+<body>
+
+<!-- ════════ AUTH SCREEN ════════ -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="logo-3d">
+      <svg width="46" height="46" viewBox="0 0 120 120"><g stroke="#1a140c" stroke-width="5" fill="none" stroke-linecap="round"><circle cx="44" cy="54" r="15"/><circle cx="76" cy="54" r="15"/><path d="M59 52 Q60 47 61 52"/><path d="M29 49 Q22 45 24 53"/><path d="M91 49 Q98 45 96 53"/></g><rect x="42" y="82" width="36" height="5" rx="2.5" fill="#1a140c"/></svg>
+    </div>
+    <div class="auth-urdu">منشی جی</div>
+    <div class="auth-title">Munshi <span>Jee</span></div>
+    <div class="auth-sub" id="authSub">Business Login</div>
+
+    <div id="authErr" class="auth-err hidden"></div>
+
+    <!-- LOGIN form -->
+    <div id="loginForm">
+      <div class="field"><label>Email</label>
+        <div class="fbox"><span class="ic">📧</span><input id="loginUser" type="email" placeholder="aap@email.com" autocomplete="username"/></div></div>
+      <div class="field"><label>Password</label>
+        <div class="fbox"><span class="ic">🔒</span><input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/><span class="eye" data-eye="loginPass">👁</span></div></div>
+      <button class="btn btn-gold" id="btnLogin">Andar Aayein →</button>
+      <div class="or-line"><span>ya</span></div>
+      <button class="btn btn-google" id="btnGoogleLogin"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.4l-6.5-5.5c-2 1.5-4.6 2.4-7.5 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.5 5.5c-.5.4 7-5.1 7-15 0-1.3-.1-2.3-.4-3.5z"/></svg> Google se aayein</button>
+      <div class="auth-links">
+        <a class="muted" id="lnkForgot">Password bhool gaye?</a>
+        <a id="lnkToSignup">Naya account banao</a>
+      </div>
+    </div>
+
+    <!-- SIGNUP form -->
+    <div id="signupForm" class="hidden">
+      <div class="field"><label>Aapka Naam</label>
+        <div class="fbox"><span class="ic">👤</span><input id="suName" placeholder="Saima Hamid"/></div></div>
+      <div class="field"><label>Business / Shop ka Naam</label>
+        <div class="fbox"><span class="ic">🏪</span><input id="suShop" placeholder="Hamid Traders"/></div></div>
+      <div class="field"><label>Email</label>
+        <div class="fbox"><span class="ic">📧</span><input id="suEmail" type="email" placeholder="aap@email.com"/></div></div>
+      <div class="field"><label>Phone (WhatsApp)</label>
+        <div class="fbox"><span class="ic">📱</span><input id="suPhone" placeholder="0300 1234567"/></div></div>
+      <div class="field"><label>Password (6+ akshar)</label>
+        <div class="fbox"><span class="ic">🔒</span><input id="suPass" type="password" placeholder="naya password"/><span class="eye" data-eye="suPass">👁</span></div></div>
+      <button class="btn btn-gold" id="btnSignup">Account Banao →</button>
+      <div class="or-line"><span>ya</span></div>
+      <button class="btn btn-google" id="btnGoogleSignup"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.4l-6.5-5.5c-2 1.5-4.6 2.4-7.5 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.5 5.5c-.5.4 7-5.1 7-15 0-1.3-.1-2.3-.4-3.5z"/></svg> Google se banao</button>
+      <div class="auth-switch">Pehle se account hai? <a id="lnkToLogin">Login karein</a></div>
+    </div>
+
+    <!-- FORGOT form -->
+    <div id="forgotForm" class="hidden">
+      <p style="font-size:.85rem;color:var(--cream-dim);margin-bottom:16px;text-align:center;">Apni email daalein — reset link aapki email par bhej denge.</p>
+      <div class="field"><label>Email</label>
+        <div class="fbox"><span class="ic">📧</span><input id="fgUser" type="email" placeholder="aap@email.com"/></div></div>
+      <button class="btn btn-gold" id="btnForgot">Reset Link Bhejo</button>
+      <div class="auth-switch"><a id="lnkToLogin2">← Wapas login</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ APP SCREEN ════════ -->
+<div id="appScreen" class="hidden">
+  <div class="appbar">
+    <div class="hi">Assalam-o-alaikum<b id="userName">—</b></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="logout-x" id="btnLogout">Logout</span>
+      <div class="logo-sm">
+        <svg width="24" height="24" viewBox="0 0 120 120"><g stroke="#1a140c" stroke-width="6" fill="none" stroke-linecap="round"><circle cx="44" cy="54" r="15"/><circle cx="76" cy="54" r="15"/><path d="M59 52 Q60 47 61 52"/></g><rect x="42" y="82" width="36" height="6" rx="3" fill="#1a140c"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOME VIEW -->
+  <div id="view-home" class="view">
+    <div class="stat-grid">
+      <div class="stat"><div class="lab">Total Udhaar</div><div class="val red" id="statUdhaar">₨ 0</div><div class="sub" id="statUdhaarSub">0 customers</div></div>
+      <div class="stat"><div class="lab">Customers</div><div class="val g" id="statCust">0</div><div class="sub" id="statCustSub">total</div></div>
+      <div class="stat"><div class="lab">Stock Items</div><div class="val" id="statStock">0</div><div class="sub" id="statStockSub">0 kam ho rahe</div></div>
+      <div class="stat"><div class="lab">Warning Wale</div><div class="val red" id="statWarn">0</div><div class="sub">udhaar zyada</div></div>
+    </div>
+
+    <div class="sec-title">Jaldi Kaam</div>
+    <div class="quick">
+      <div class="qbtn" data-go="bilty"><span class="ic">🚚</span><span class="t">Nayi Bilty</span></div>
+      <div class="qbtn" data-go="khata"><span class="ic">📒</span><span class="t">Khata</span></div>
+      <div class="qbtn" data-go="stock"><span class="ic">📦</span><span class="t">Stock</span></div>
+      <div class="qbtn" data-go="munshi"><span class="ic">🎙️</span><span class="t">Munshi Jee</span></div>
+    </div>
+
+    <div class="sec-title">Udhaar Wale <a data-go="khata">Sab dekho →</a></div>
+    <div class="card-list" id="homeUdhaarList"></div>
+  </div>
+
+  <!-- Other views (placeholders for now — Part 2 mein banayenge) -->
+  <div id="view-khata" class="view hidden">
+    <!-- LIST mode -->
+    <div id="khataList">
+      <div class="search-box"><span>🔍</span><input id="khataSearch" placeholder="Naam, shop, ya sheher..."/></div>
+      <div class="filter-row">
+        <div class="fpill active" data-kf="all">Sab</div>
+        <div class="fpill" data-kf="udhaar">Udhaar Wale</div>
+        <div class="fpill" data-kf="warn">⚠️ Warning</div>
+        <div class="fpill" data-kf="wholesale">Wholesale</div>
+        <div class="fpill" data-kf="retail">Retail</div>
+      </div>
+      <div id="khataRows" class="card-list"></div>
+    </div>
+
+    <!-- DETAIL mode -->
+    <div id="khataDetail" class="hidden">
+      <button class="back-btn" id="khataBack">← Wapas khata list</button>
+      <div class="khata-hero">
+        <div class="nm" id="kdName">—</div>
+        <div class="meta" id="kdMeta">—</div>
+        <div class="bal"><small>Baqaya Udhaar</small><span id="kdBal">₨ 0</span></div>
+        <span class="chip" id="kdChip">⏱ —</span>
+      </div>
+      <div id="kdWarn" class="warn-box hidden"><span>⚠️</span><span id="kdWarnText"></span></div>
+      <div class="act-row">
+        <button class="wa-btn" id="kdWhatsapp">🟢 WhatsApp Yaad Dilao</button>
+        <button class="sms-btn2" id="kdSms">✉️ SMS</button>
+      </div>
+      <div class="ledger-add">
+        <button class="l-diya" id="kdDiya">+ Maal Diya (Udhaar)</button>
+        <button class="l-mila" id="kdMila">− Cash Mila</button>
+      </div>
+      <div class="sec-title">Hisaab</div>
+      <div id="kdLedger" class="card-list"></div>
+    </div>
+
+    <button class="add-fab" id="khataAddFab">+</button>
+  </div>
+  <div id="view-bilty" class="view hidden">
+    <div class="sec-title">Nayi Bikri / Bilty</div>
+    <div class="card-list" style="padding:14px 16px;margin-bottom:12px;">
+      <div style="font-size:.68rem;letter-spacing:1px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:7px;">Customer</div>
+      <div id="billCustPick" class="fbox" style="cursor:pointer;"><span class="ic">🏪</span><span id="billCustName" style="flex:1;color:var(--cream-dim);">Customer chuno...</span><span>▾</span></div>
+    </div>
+    <div id="billLines"></div>
+    <button class="add-prod-btn" id="billAddProd">+ Product Add Karo</button>
+    <div class="card-list" style="padding:14px 16px;margin:12px 0;">
+      <div class="qty-box" style="background:none;border:none;padding:0;justify-content:space-between;">
+        <label style="font-size:.72rem;">Discount %</label>
+        <input id="billDiscount" type="number" inputmode="numeric" value="0" style="text-align:right;max-width:80px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px;"/>
+      </div>
+    </div>
+    <div class="bill-total"><span class="l">Total</span><span class="v" id="billTotal">₨ 0</span></div>
+    <div class="seg" style="margin-bottom:10px;">
+      <button class="on" id="billPayCash" data-pay="cash">💵 Cash</button>
+      <button id="billPayUdhaar" data-pay="udhaar">📒 Udhaar</button>
+    </div>
+    <button class="btn btn-gold" id="billSave">Bikri Save Karo</button>
+    <div style="text-align:center;margin-top:10px;font-size:.7rem;color:var(--cream-dim);">📷 Ya photo se AI scan (agle phase mein)</div>
+  </div>
+  <div id="view-stock" class="view hidden">
+    <div class="search-box"><span>🔍</span><input id="prodSearch" placeholder="Product dhundo..."/></div>
+    <div class="filter-row">
+      <div class="fpill active" data-pf="all">Sab</div>
+      <div class="fpill" data-pf="low">⚠️ Kam Stock</div>
+    </div>
+    <div id="prodRows"></div>
+    <button class="add-fab" id="prodAddFab">+</button>
+  </div>
+  <div id="view-munshi" class="view hidden"><div class="placeholder"><div class="pic">🎙️</div><h3>Munshi Jee</h3><p>Voice agent — bol kar kaam karwao —<br/>agle step mein.</p></div></div>
+
+  <div class="tabbar">
+    <div class="tab active" data-go="home"><span class="ic">🏠</span>Home</div>
+    <div class="tab" data-go="khata"><span class="ic">📒</span>Khata</div>
+    <div class="tab munshi" data-go="munshi"><span class="ic">🎙️</span>Munshi</div>
+    <div class="tab" data-go="stock"><span class="ic">📦</span>Stock</div>
+    <div class="tab" data-go="bilty"><span class="ic">🚚</span>Bilty</div>
+  </div>
+</div>
+
+<!-- ════════ MODALS ════════ -->
+<div id="custModal" class="modal-bg hidden">
+  <div class="modal">
+    <span class="mclose" data-close="custModal">✕</span>
+    <h3>Naya Customer</h3>
+    <div class="msub">Customer / shop ka hisaab shuru karein</div>
+    <div class="field"><label>Naam</label><div class="fbox"><span class="ic">👤</span><input id="ncName" placeholder="Malik Sahab"/></div></div>
+    <div class="field"><label>Shop ka Naam</label><div class="fbox"><span class="ic">🏪</span><input id="ncShop" placeholder="Malik Traders"/></div></div>
+    <div class="field"><label>Sheher</label><div class="fbox"><span class="ic">📍</span><input id="ncCity" placeholder="Faisalabad"/></div></div>
+    <div class="field"><label>Phone (WhatsApp)</label><div class="fbox"><span class="ic">📱</span><input id="ncPhone" placeholder="0300 1234567"/></div></div>
+    <div class="field"><label>Type</label>
+      <div class="seg"><button class="on" data-type="wholesale">Wholesale</button><button data-type="retail">Retail</button></div>
+    </div>
+    <div class="field"><label>Udhaar Wapsi ka Time</label>
+      <div class="time-grid">
+        <button data-time="15 din">15 din</button>
+        <button class="on" data-time="1 mahina">1 mahina</button>
+        <button data-time="3 mahine">3 mahine</button>
+        <button data-time="6 mahine">6 mahine</button>
+        <button data-time="1 saal">1 saal</button>
+        <button data-time="custom">Aur</button>
+      </div>
+    </div>
+    <button class="btn btn-gold" id="ncSave" style="margin-top:18px;">Customer Save Karo</button>
+  </div>
+</div>
+
+<div id="ledgerModal" class="modal-bg hidden">
+  <div class="modal">
+    <span class="mclose" data-close="ledgerModal">✕</span>
+    <h3 id="lmTitle">Maal Diya</h3>
+    <div class="msub" id="lmSub">Udhaar mein izafa</div>
+    <div class="field"><label>Raqam (₨)</label><div class="fbox"><span class="ic">💰</span><input id="lmAmount" type="number" inputmode="numeric" placeholder="30000"/></div></div>
+    <div class="field"><label>Tafseel (optional)</label><div class="fbox"><span class="ic">📝</span><input id="lmNote" placeholder="30 nug lawn suit"/></div></div>
+    <button class="btn btn-gold" id="lmSave" style="margin-top:8px;">Save Karo</button>
+  </div>
+</div>
+
+<!-- Product add/edit modal -->
+<div id="prodModal" class="modal-bg hidden">
+  <div class="modal">
+    <span class="mclose" data-close="prodModal">✕</span>
+    <h3>Naya Product</h3>
+    <div class="msub">Maal ka naam, rate aur stock</div>
+    <div class="field"><label>Product ka Naam</label><div class="fbox"><span class="ic">📦</span><input id="npName" placeholder="Lawn Suit 3pc"/></div></div>
+    <div class="field"><label>Category (optional)</label><div class="fbox"><span class="ic">🏷️</span><input id="npCat" placeholder="Lawn"/></div></div>
+    <div class="two">
+      <div class="field"><label>Rate per piece (₨)</label><div class="fbox"><span class="ic">💰</span><input id="npRate" type="number" inputmode="numeric" placeholder="1000"/></div></div>
+      <div class="field"><label>1 Carton = kitne piece</label><div class="fbox"><span class="ic">🔢</span><input id="npPerCarton" type="number" inputmode="numeric" placeholder="24"/></div></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Stock (total pieces)</label><div class="fbox"><span class="ic">📊</span><input id="npStock" type="number" inputmode="numeric" placeholder="500"/></div></div>
+      <div class="field"><label>Low-stock alert pe</label><div class="fbox"><span class="ic">⚠️</span><input id="npLow" type="number" inputmode="numeric" placeholder="50"/></div></div>
+    </div>
+    <button class="btn btn-gold" id="npSave" style="margin-top:8px;">Product Save Karo</button>
+  </div>
+</div>
+
+<!-- Generic picker modal (customer or product) -->
+<div id="pickModal" class="modal-bg hidden">
+  <div class="modal">
+    <span class="mclose" data-close="pickModal">✕</span>
+    <h3 id="pickTitle">Chuno</h3>
+    <div class="search-box" style="margin-top:12px;"><span>🔍</span><input id="pickSearch" placeholder="Dhundo..."/></div>
+    <div id="pickRows" style="max-height:46vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+//   MUNSHI JEE — CLOUD (Supabase) VERSION
+// ════════════════════════════════════════════
+const SUPA_URL = 'https://earradnwvmuvphgunwlr.supabase.co';
+const SUPA_KEY = 'sb_publishable_JSE7u_ZGC3UdgkkYeGo8Qw_TrjMwrKb';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// Local cache — cloud se aaya data yahan rakhte hain (offline + tez UI ke liye)
+const LS = {
+  get(k){ try{return JSON.parse(localStorage.getItem('mj_'+k));}catch(e){return null;} },
+  set(k,v){ localStorage.setItem('mj_'+k, JSON.stringify(v)); }
+};
+
+let CURRENT_USER = null;  // logged-in user
+
+// ══════ CLOUD DATA LAYER ══════
+// Cloud se customers/products laakar local cache mein daalte hain,
+// phir baaqi purana code (jo LS.get istemal karta hai) bina badle chalta rehta hai.
+
+async function cloudLoadCustomers(){
+  const { data, error } = await sb.from('customers').select('*').order('created_at',{ascending:true});
+  if(error){ console.error('customers load:',error); return LS.get('customers')||[]; }
+  const mapped = (data||[]).map(c=>({
+    id:c.id, name:c.name, shop:c.shop||c.name, city:c.city||'—',
+    phone:c.phone||'', type:c.type||'wholesale', time:c.time||'1 mahina',
+    ledger: Array.isArray(c.ledger)?c.ledger:[]
+  }));
+  LS.set('customers', mapped);
+  return mapped;
+}
+
+async function cloudLoadProducts(){
+  const { data, error } = await sb.from('products').select('*').order('created_at',{ascending:true});
+  if(error){ console.error('products load:',error); return LS.get('products')||[]; }
+  const mapped = (data||[]).map(p=>({
+    id:p.id, name:p.name, cat:p.cat||'', rate:Number(p.rate)||0,
+    perCarton:p.per_carton||1, stock:p.stock||0, low:p.low||0
+  }));
+  LS.set('products', mapped);
+  return mapped;
+}
+
+async function cloudAddCustomer(c){
+  const { data, error } = await sb.from('customers').insert({
+    name:c.name, shop:c.shop, city:c.city, phone:c.phone,
+    type:c.type, time:c.time, ledger:c.ledger||[]
+  }).select().single();
+  if(error){ showToast('Cloud error: '+error.message); return null; }
+  return data;
+}
+
+async function cloudUpdateLedger(custId, ledger){
+  const { error } = await sb.from('customers').update({ledger}).eq('id',custId);
+  if(error){ showToast('Save nahi hua: '+error.message); return false; }
+  return true;
+}
+
+async function cloudAddProduct(p){
+  const { data, error } = await sb.from('products').insert({
+    name:p.name, cat:p.cat, rate:p.rate, per_carton:p.perCarton,
+    stock:p.stock, low:p.low
+  }).select().single();
+  if(error){ showToast('Cloud error: '+error.message); return null; }
+  return data;
+}
+
+async function cloudUpdateStock(prodId, stock){
+  const { error } = await sb.from('products').update({stock}).eq('id',prodId);
+  if(error){ showToast('Stock save nahi hua'); return false; }
+  return true;
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+function showErr(msg){
+  const e=document.getElementById('authErr');
+  e.textContent=msg; e.classList.remove('hidden');
+}
+function clearErr(){ document.getElementById('authErr').classList.add('hidden'); }
+
+// switch auth forms
+function showAuthForm(which){
+  clearErr();
+  ['loginForm','signupForm','forgotForm'].forEach(f=>document.getElementById(f).classList.add('hidden'));
+  document.getElementById(which).classList.remove('hidden');
+  const subs={loginForm:'Business Login',signupForm:'Naya Account',forgotForm:'Password Recover'};
+  document.getElementById('authSub').textContent=subs[which];
+}
+
+// signup — Supabase Auth (email/password)
+async function doSignup(){
+  const name=document.getElementById('suName').value.trim();
+  const shop=document.getElementById('suShop').value.trim();
+  const email=document.getElementById('suEmail').value.trim();
+  const phone=document.getElementById('suPhone').value.trim();
+  const pass=document.getElementById('suPass').value;
+  if(!name||!email||!pass){ showErr('Naam, email aur password zaroori hain'); return; }
+  if(pass.length<6){ showErr('Password 6 akshar ya zyada ho'); return; }
+  const btn=document.getElementById('btnSignup'); btn.textContent='Ruk jayein...'; btn.disabled=true;
+  const { data, error } = await sb.auth.signUp({
+    email, password:pass,
+    options:{ data:{ name, shop, phone, plan:'free' } }
+  });
+  btn.textContent='Account Banao →'; btn.disabled=false;
+  if(error){ showErr(error.message); return; }
+  if(data.session){ showToast('Account ban gaya! 🎉'); afterLogin(); }
+  else { showErr('Account ban gaya! Email check karein — tasdeeq (confirm) ka link bheja hai. Confirm ke baad login karein.'); showAuthForm('loginForm'); }
+}
+
+// login — Supabase Auth
+async function doLogin(){
+  const email=document.getElementById('loginUser').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!email||!pass){ showErr('Email aur password daalein'); return; }
+  const btn=document.getElementById('btnLogin'); btn.textContent='Ruk jayein...'; btn.disabled=true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+  btn.textContent='Andar Aayein →'; btn.disabled=false;
+  if(error){ showErr('Email ya password galat — ya email confirm nahi hui'); return; }
+  afterLogin();
+}
+
+// Google login/signup
+async function doGoogle(){
+  const { error } = await sb.auth.signInWithOAuth({
+    provider:'google',
+    options:{ redirectTo: window.location.origin + window.location.pathname }
+  });
+  if(error){ showErr('Google login abhi set nahi — email se banayein. ('+error.message+')'); }
+}
+
+// forgot — email par reset link
+async function doForgot(){
+  const email=document.getElementById('fgUser').value.trim();
+  if(!email){ showErr('Email daalein'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  if(error){ showErr(error.message); }
+  else { showErr('Reset link aapki email par bhej diya hai. Check karein.'); }
+}
+
+// logout
+async function doLogout(){
+  await sb.auth.signOut();
+  location.reload();
+}
+
+// login ke baad — user info set karo, data load karo, app kholo
+async function afterLogin(){
+  clearErr();
+  const { data:{ user } } = await sb.auth.getUser();
+  CURRENT_USER = user;
+  const meta = user.user_metadata || {};
+  const displayName = meta.name || (user.email||'').split('@')[0] || 'Mehman';
+  document.getElementById('userName').textContent = displayName;
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appScreen').classList.remove('hidden');
+  // cloud se data lao
+  showToast('Data cloud se aa raha hai...');
+  await cloudLoadCustomers();
+  await cloudLoadProducts();
+  goView('home');
+}
+
+function enterApp(){ afterLogin(); }
+
+// page khulte hi — check karo user pehle se logged-in hai kya
+async function checkLogin(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ afterLogin(); }
+}
+
+// view switching
+function goView(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.add('hidden'));
+  const target=document.getElementById('view-'+v);
+  if(target){ target.classList.remove('hidden'); }
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.getAttribute('data-go')===v));
+  if(v==='home' && typeof window.renderHome==='function'){ window.renderHome(); }
+  if(v==='khata' && typeof window.renderKhataList==='function'){
+    const list=document.getElementById('khataList'), det=document.getElementById('khataDetail'), fab=document.getElementById('khataAddFab');
+    if(det) det.classList.add('hidden');
+    if(list) list.classList.remove('hidden');
+    if(fab) fab.classList.remove('hidden');
+    window.renderKhataList();
+  }
+  if(v==='stock' && typeof window.renderProducts==='function'){ window.renderProducts(); }
+  if(v==='bilty' && typeof window.renderBill==='function'){ window.renderBill(); }
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ════════ BIND EVERYTHING (CSP-proof, no inline handlers) ════════
+document.addEventListener('DOMContentLoaded', function(){
+  // auth buttons
+  document.getElementById('btnLogin').addEventListener('click', doLogin);
+  document.getElementById('btnSignup').addEventListener('click', doSignup);
+  document.getElementById('btnForgot').addEventListener('click', doForgot);
+  document.getElementById('lnkToSignup').addEventListener('click', ()=>showAuthForm('signupForm'));
+  document.getElementById('lnkToLogin').addEventListener('click', ()=>showAuthForm('loginForm'));
+  document.getElementById('lnkToLogin2').addEventListener('click', ()=>showAuthForm('loginForm'));
+  document.getElementById('lnkForgot').addEventListener('click', ()=>showAuthForm('forgotForm'));
+  document.getElementById('btnGoogleLogin').addEventListener('click', doGoogle);
+  document.getElementById('btnGoogleSignup').addEventListener('click', doGoogle);
+  document.getElementById('btnLogout').addEventListener('click', doLogout);
+
+  // password eye toggles
+  document.querySelectorAll('.eye').forEach(eye=>{
+    eye.addEventListener('click', ()=>{
+      const inp=document.getElementById(eye.getAttribute('data-eye'));
+      inp.type = inp.type==='password'?'text':'password';
+      eye.textContent = inp.type==='password'?'👁':'🙈';
+    });
+  });
+
+  // enter key on login & signup
+  document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  document.getElementById('suPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doSignup(); });
+
+  // navigation (quick buttons, tabs, links)
+  document.body.addEventListener('click', function(e){
+    const go=e.target.closest('[data-go]');
+    if(go){ goView(go.getAttribute('data-go')); }
+  });
+
+  bindKhata();
+  bindStockBilling();
+  // cross-scope: bahar wale goView/afterLogin ke liye expose
+  window.renderHome=renderHome;
+  window.renderKhataList=renderKhataList;
+  window.renderProducts=renderProducts;
+  window.renderBill=renderBill;
+
+  // ════════ KHATA MODULE ════════
+let curFilter='all', curCustId=null, ledgerKind='diya';
+let custDraft={type:'wholesale', time:'1 mahina'};
+
+function custBalance(c){
+  return c.ledger.reduce((s,e)=>s+(e.k==='diya'?e.amt:-e.amt),0);
+}
+function fmtRs(n){ return '₨ '+Number(n).toLocaleString('en-PK'); }
+
+// ══════ HOME DASHBOARD (asli data) ══════
+function renderHome(){
+  const custs=LS.get('customers')||[];
+  const prods=LS.get('products')||[];
+  let totalUdhaar=0, udhaarCount=0, warnCount=0;
+  custs.forEach(c=>{
+    const bal=custBalance(c);
+    if(bal>0){ totalUdhaar+=bal; udhaarCount++; if(bal>=50000) warnCount++; }
+  });
+  const lowStock=prods.filter(p=>p.stock<=p.low).length;
+  const setTxt=(id,txt)=>{ const el=document.getElementById(id); if(el) el.textContent=txt; };
+  setTxt('statUdhaar', fmtRs(totalUdhaar));
+  setTxt('statUdhaarSub', udhaarCount+' customers');
+  setTxt('statCust', custs.length);
+  setTxt('statStock', prods.length);
+  setTxt('statStockSub', lowStock+' kam ho rahe');
+  setTxt('statWarn', warnCount);
+  // udhaar wale list (top 5 by balance)
+  const box=document.getElementById('homeUdhaarList');
+  if(!box) return;
+  const withBal=custs.map(c=>({c,bal:custBalance(c)})).filter(x=>x.bal>0)
+    .sort((a,b)=>b.bal-a.bal).slice(0,5);
+  if(!withBal.length){
+    box.innerHTML='<div style="text-align:center;padding:24px;color:var(--cream-dim);font-size:.85rem;">Abhi koi udhaar nahi — customer add karke shuru karein</div>';
+    return;
+  }
+  box.innerHTML=withBal.map(({c,bal})=>`
+    <div class="row" data-cust="${c.id}" data-go="khata">
+      <div class="av">🏪</div>
+      <div class="mid"><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}</small></div>
+      <div class="amt red">${fmtRs(bal)}<small>${c.time} baqi${bal>=50000?' ⚠️':''}</small></div>
+    </div>`).join('');
+}
+
+function renderKhataList(){
+  const q=(document.getElementById('khataSearch').value||'').toLowerCase();
+  const custs=LS.get('customers')||[];
+  const box=document.getElementById('khataRows');
+  const filtered=custs.filter(c=>{
+    const bal=custBalance(c);
+    if(curFilter==='udhaar'&&bal<=0) return false;
+    if(curFilter==='warn'&&bal<=0) return false;
+    if(curFilter==='wholesale'&&c.type!=='wholesale') return false;
+    if(curFilter==='retail'&&c.type!=='retail') return false;
+    if(q&&!(c.name.toLowerCase().includes(q)||c.shop.toLowerCase().includes(q)||c.city.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if(!filtered.length){ box.innerHTML='<div style="text-align:center;padding:30px;color:var(--cream-dim);font-size:.85rem;">Koi customer nahi mila</div>'; return; }
+  box.innerHTML=filtered.map(c=>{
+    const bal=custBalance(c);
+    const amtCls=bal>0?'red':'green';
+    const amtTxt=bal>0?fmtRs(bal):'Paid ✓';
+    return `<div class="row" data-cust="${c.id}">
+      <div class="av">🏪</div>
+      <div class="mid"><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}</small></div>
+      <div class="amt ${amtCls}">${amtTxt}<small>${bal>0?c.time:''}</small></div>
+    </div>`;
+  }).join('');
+}
+
+function openKhataDetail(id){
+  const c=(LS.get('customers')||[]).find(x=>x.id==id);
+  if(!c) return;
+  curCustId=id;
+  const bal=custBalance(c);
+  document.getElementById('kdName').textContent=c.name;
+  document.getElementById('kdMeta').textContent='🏪 '+c.city+' · '+(c.type==='wholesale'?'Wholesale':'Retail');
+  document.getElementById('kdBal').textContent=fmtRs(bal);
+  document.getElementById('kdChip').textContent='⏱ Wapsi: '+c.time;
+  // warning if balance > 0
+  const warn=document.getElementById('kdWarn');
+  if(bal>0){ warn.classList.remove('hidden'); document.getElementById('kdWarnText').textContent='Udhaar baqaya hai — wapsi ka time: '+c.time+'. Reminder bhejein.'; }
+  else warn.classList.add('hidden');
+  // ledger
+  document.getElementById('kdLedger').innerHTML=c.ledger.slice().reverse().map(e=>`
+    <div class="row" style="cursor:default;">
+      <div class="av">${e.k==='diya'?'📥':'💵'}</div>
+      <div class="mid"><b>${e.k==='diya'?'Maal diya':'Cash mila'}</b><small>${e.date} · ${e.note||''}</small></div>
+      <div class="amt ${e.k==='diya'?'red':'green'}">${e.k==='diya'?'+':'−'}${Number(e.amt).toLocaleString('en-PK')}</div>
+    </div>`).join('') || '<div style="text-align:center;padding:20px;color:var(--cream-dim);font-size:.82rem;">Abhi koi hisaab nahi</div>';
+  document.getElementById('khataList').classList.add('hidden');
+  document.getElementById('khataDetail').classList.remove('hidden');
+  document.getElementById('khataAddFab').classList.add('hidden');
+}
+function closeKhataDetail(){
+  document.getElementById('khataDetail').classList.add('hidden');
+  document.getElementById('khataList').classList.remove('hidden');
+  document.getElementById('khataAddFab').classList.remove('hidden');
+  renderKhataList();
+}
+
+function waReminder(){
+  const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+  if(!c) return;
+  const bal=custBalance(c);
+  const msg=`Assalam-o-alaikum ${c.name},\nAapka baqaya udhaar ${fmtRs(bal)} hai.\nBaraah-e-karam ada karne ki zehmat karein.\nShukria — Munshi Jee`;
+  const phone=c.phone.replace(/[^0-9]/g,'').replace(/^0/,'92');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  showToast('WhatsApp khul raha hai... 🟢');
+}
+function smsReminder(){
+  const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+  if(!c) return;
+  const bal=custBalance(c);
+  const msg=`Munshi Jee: ${c.name}, aapka udhaar ${fmtRs(bal)} baqaya hai. Baraah-e-karam ada karein.`;
+  window.open(`sms:${c.phone}?body=${encodeURIComponent(msg)}`,'_blank');
+  showToast('SMS app khul raha hai... ✉️');
+}
+
+function openLedgerModal(kind){
+  ledgerKind=kind;
+  document.getElementById('lmTitle').textContent=kind==='diya'?'Maal Diya':'Cash Mila';
+  document.getElementById('lmSub').textContent=kind==='diya'?'Udhaar mein izafa':'Udhaar kam hoga';
+  document.getElementById('lmAmount').value='';
+  document.getElementById('lmNote').value='';
+  document.getElementById('ledgerModal').classList.remove('hidden');
+}
+async function saveLedger(){
+  const amt=parseFloat(document.getElementById('lmAmount').value);
+  if(!amt||amt<=0){ showToast('Sahi raqam daalein'); return; }
+  const note=document.getElementById('lmNote').value.trim();
+  const custs=LS.get('customers')||[];
+  const c=custs.find(x=>x.id==curCustId);
+  const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  c.ledger.push({k:ledgerKind,amt,note,date});
+  LS.set('customers',custs);
+  document.getElementById('ledgerModal').classList.add('hidden');
+  openKhataDetail(curCustId);
+  const ok = await cloudUpdateLedger(curCustId, c.ledger);
+  showToast(ok ? (ledgerKind==='diya'?'Udhaar add hua ✓':'Payment add hua ✓') : 'Local mein hai, cloud pe ruka');
+}
+
+async function saveCustomer(){
+  const name=document.getElementById('ncName').value.trim();
+  if(!name){ showToast('Naam zaroori hai'); return; }
+  const newCust={
+    name,
+    shop:document.getElementById('ncShop').value.trim()||name,
+    city:document.getElementById('ncCity').value.trim()||'—',
+    phone:document.getElementById('ncPhone').value.trim()||'',
+    type:custDraft.type, time:custDraft.time, ledger:[]
+  };
+  const btn=document.getElementById('ncSave'); btn.textContent='Save ho raha...'; btn.disabled=true;
+  const saved = await cloudAddCustomer(newCust);
+  btn.textContent='Customer Save Karo'; btn.disabled=false;
+  if(!saved){ return; } // error already shown
+  // cloud se fresh data lao (id waghera cloud deta hai)
+  await cloudLoadCustomers();
+  document.getElementById('custModal').classList.add('hidden');
+  ['ncName','ncShop','ncCity','ncPhone'].forEach(i=>document.getElementById(i).value='');
+  renderKhataList();
+  showToast('Customer add ho gaya! 🎉');
+}
+
+function bindKhata(){
+  document.getElementById('khataSearch').addEventListener('input', renderKhataList);
+  // filter pills
+  document.querySelectorAll('[data-kf]').forEach(p=>p.addEventListener('click',()=>{
+    curFilter=p.getAttribute('data-kf');
+    document.querySelectorAll('[data-kf]').forEach(x=>x.classList.toggle('active',x===p));
+    renderKhataList();
+  }));
+  // row click -> detail (delegation)
+  document.getElementById('khataRows').addEventListener('click',e=>{
+    const r=e.target.closest('[data-cust]'); if(r) openKhataDetail(r.getAttribute('data-cust'));
+  });
+  document.getElementById('khataBack').addEventListener('click', closeKhataDetail);
+  document.getElementById('kdWhatsapp').addEventListener('click', waReminder);
+  document.getElementById('kdSms').addEventListener('click', smsReminder);
+  document.getElementById('kdDiya').addEventListener('click',()=>openLedgerModal('diya'));
+  document.getElementById('kdMila').addEventListener('click',()=>openLedgerModal('mila'));
+  document.getElementById('lmSave').addEventListener('click', saveLedger);
+  document.getElementById('khataAddFab').addEventListener('click',()=>document.getElementById('custModal').classList.remove('hidden'));
+  document.getElementById('ncSave').addEventListener('click', saveCustomer);
+  // modal close
+  document.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',()=>document.getElementById(x.getAttribute('data-close')).classList.add('hidden')));
+  // type segment
+  document.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',()=>{
+    custDraft.type=b.getAttribute('data-type');
+    document.querySelectorAll('[data-type]').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  // time grid
+  document.querySelectorAll('[data-time]').forEach(b=>b.addEventListener('click',()=>{
+    custDraft.time=b.getAttribute('data-time')==='custom'?(prompt('Time likhein (jaise 45 din):')||'1 mahina'):b.getAttribute('data-time');
+    document.querySelectorAll('[data-time]').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+}
+
+// ════════ PRODUCTS / STOCK MODULE ════════
+let prodFilter='all';
+
+function renderProducts(){
+  const q=(document.getElementById('prodSearch').value||'').toLowerCase();
+  const prods=LS.get('products')||[];
+  const box=document.getElementById('prodRows');
+  const filtered=prods.filter(p=>{
+    if(prodFilter==='low' && p.stock>p.low) return false;
+    if(q && !(p.name.toLowerCase().includes(q)||(p.cat||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if(!filtered.length){ box.innerHTML='<div style="text-align:center;padding:30px;color:var(--cream-dim);font-size:.85rem;">Koi product nahi mila</div>'; return; }
+  box.innerHTML=filtered.map(p=>{
+    const low=p.stock<=p.low;
+    const cartons=Math.floor(p.stock/p.perCarton), pieces=p.stock%p.perCarton;
+    return `<div class="prod-card" data-prod="${p.id}">
+      <div class="pic">📦</div>
+      <div class="info">
+        <b>${p.name}</b>
+        <small>${p.cat||''} · 1 carton = ${p.perCarton} pcs</small>
+        <div class="unit-hint">Stock: ${p.stock} pcs (${cartons} carton${pieces?' + '+pieces+' pcs':''})</div>
+        <span class="stock-pill ${low?'stock-low':'stock-ok'}">${low?'⚠️ Kam stock':'✓ Stock theek'}</span>
+      </div>
+      <div class="right"><div class="rate">₨${p.rate}</div><div class="unit-hint">/piece</div></div>
+    </div>`;
+  }).join('');
+}
+
+async function saveProduct(){
+  const name=document.getElementById('npName').value.trim();
+  if(!name){ showToast('Naam zaroori hai'); return; }
+  const newProd={
+    name,
+    cat:document.getElementById('npCat').value.trim(),
+    rate:parseFloat(document.getElementById('npRate').value)||0,
+    perCarton:parseInt(document.getElementById('npPerCarton').value)||1,
+    stock:parseInt(document.getElementById('npStock').value)||0,
+    low:parseInt(document.getElementById('npLow').value)||0
+  };
+  const btn=document.getElementById('npSave'); btn.textContent='Save ho raha...'; btn.disabled=true;
+  const saved = await cloudAddProduct(newProd);
+  btn.textContent='Product Save Karo'; btn.disabled=false;
+  if(!saved){ return; }
+  await cloudLoadProducts();
+  document.getElementById('prodModal').classList.add('hidden');
+  ['npName','npCat','npRate','npPerCarton','npStock','npLow'].forEach(i=>document.getElementById(i).value='');
+  renderProducts();
+  showToast('Product add ho gaya! 📦');
+}
+
+// ════════ SMART BILLING MODULE ════════
+let bill = { custId:null, lines:[], pay:'cash' }; // lines: {prodId, cartons, pieces}
+
+function renderBill(){
+  // customer name
+  const cust=(LS.get('customers')||[]).find(c=>c.id==bill.custId);
+  const cn=document.getElementById('billCustName');
+  if(cust){ cn.textContent=cust.name; cn.style.color='var(--cream)'; }
+  else { cn.textContent='Customer chuno...'; cn.style.color='var(--cream-dim)'; }
+  // lines
+  const prods=LS.get('products')||[];
+  const box=document.getElementById('billLines');
+  box.innerHTML=bill.lines.map((ln,idx)=>{
+    const p=prods.find(x=>x.id==ln.prodId); if(!p) return '';
+    const totalPcs=(ln.cartons*p.perCarton)+ln.pieces;
+    const amt=totalPcs*p.rate;
+    return `<div class="bill-line">
+      <div class="top"><b>${p.name}</b><span class="del" data-delline="${idx}">🗑</span></div>
+      <div class="qty-row">
+        <div class="qty-box"><label>Carton</label><input type="number" inputmode="numeric" data-line="${idx}" data-fld="cartons" value="${ln.cartons}"/></div>
+        <div class="qty-box"><label>Piece</label><input type="number" inputmode="numeric" data-line="${idx}" data-fld="pieces" value="${ln.pieces}"/></div>
+      </div>
+      <div class="calc-hint">📐 ${ln.cartons} carton × ${p.perCarton} + ${ln.pieces} = <b>${totalPcs} pcs</b> × ₨${p.rate} = <b>₨${amt.toLocaleString('en-PK')}</b></div>
+    </div>`;
+  }).join('');
+  // total
+  let sub=0;
+  bill.lines.forEach(ln=>{ const p=prods.find(x=>x.id==ln.prodId); if(p){ sub+=((ln.cartons*p.perCarton)+ln.pieces)*p.rate; } });
+  const disc=parseFloat(document.getElementById('billDiscount').value)||0;
+  const total=Math.round(sub*(1-disc/100));
+  document.getElementById('billTotal').textContent=fmtRs(total);
+}
+
+function addBillLine(prodId){
+  bill.lines.push({prodId, cartons:1, pieces:0});
+  renderBill();
+}
+
+async function saveBill(){
+  if(!bill.custId){ showToast('Pehle customer chuno'); return; }
+  if(!bill.lines.length){ showToast('Koi product add karo'); return; }
+  const prods=LS.get('products')||[];
+  let sub=0, noteParts=[], stockUpdates=[];
+  bill.lines.forEach(ln=>{
+    const p=prods.find(x=>x.id==ln.prodId); if(!p) return;
+    const totalPcs=(ln.cartons*p.perCarton)+ln.pieces;
+    sub+=totalPcs*p.rate;
+    p.stock=Math.max(0,p.stock-totalPcs); // reduce stock
+    stockUpdates.push({id:p.id, stock:p.stock});
+    noteParts.push(`${ln.cartons}c+${ln.pieces}p ${p.name}`);
+  });
+  const disc=parseFloat(document.getElementById('billDiscount').value)||0;
+  const total=Math.round(sub*(1-disc/100));
+  LS.set('products',prods);
+  const btn=document.getElementById('billSave'); btn.textContent='Save ho raha...'; btn.disabled=true;
+  // cloud: har product ka stock update karo
+  for(const su of stockUpdates){ await cloudUpdateStock(su.id, su.stock); }
+  // udhaar -> customer ledger cloud mein
+  if(bill.pay==='udhaar'){
+    const custs=LS.get('customers')||[];
+    const c=custs.find(x=>x.id==bill.custId);
+    const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    c.ledger.push({k:'diya',amt:total,note:noteParts.join(', '),date});
+    LS.set('customers',custs);
+    await cloudUpdateLedger(bill.custId, c.ledger);
+  }
+  btn.textContent='Bikri Save Karo'; btn.disabled=false;
+  showToast(bill.pay==='udhaar'?'Bikri udhaar khate mein! 📒':'Bikri save ho gayi! ✓ '+fmtRs(total));
+  // reset
+  bill={custId:null,lines:[],pay:'cash'};
+  document.getElementById('billDiscount').value='0';
+  document.querySelectorAll('[data-pay]').forEach(x=>x.classList.toggle('on',x.getAttribute('data-pay')==='cash'));
+  renderBill();
+}
+
+// ════════ PICKER (customer / product for billing) ════════
+let pickMode='cust';
+function openPicker(mode){
+  pickMode=mode;
+  document.getElementById('pickTitle').textContent = mode==='cust'?'Customer Chuno':'Product Chuno';
+  document.getElementById('pickSearch').value='';
+  renderPicker();
+  document.getElementById('pickModal').classList.remove('hidden');
+}
+function renderPicker(){
+  const q=(document.getElementById('pickSearch').value||'').toLowerCase();
+  const box=document.getElementById('pickRows');
+  if(pickMode==='cust'){
+    const custs=(LS.get('customers')||[]).filter(c=>!q||c.name.toLowerCase().includes(q)||c.city.toLowerCase().includes(q));
+    box.innerHTML=custs.map(c=>`<div class="pick-row" data-pick="${c.id}"><div class="av">🏪</div><div><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}</small></div></div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--cream-dim);font-size:.82rem;">Koi nahi mila</div>';
+  } else {
+    const prods=(LS.get('products')||[]).filter(p=>!q||p.name.toLowerCase().includes(q));
+    box.innerHTML=prods.map(p=>`<div class="pick-row" data-pick="${p.id}"><div class="av">📦</div><div><b>${p.name}</b><small>₨${p.rate}/pc · stock ${p.stock}</small></div></div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--cream-dim);font-size:.82rem;">Koi nahi mila</div>';
+  }
+}
+
+function bindStockBilling(){
+  // products
+  document.getElementById('prodSearch').addEventListener('input', renderProducts);
+  document.querySelectorAll('[data-pf]').forEach(p=>p.addEventListener('click',()=>{
+    prodFilter=p.getAttribute('data-pf');
+    document.querySelectorAll('[data-pf]').forEach(x=>x.classList.toggle('active',x===p));
+    renderProducts();
+  }));
+  document.getElementById('prodAddFab').addEventListener('click',()=>document.getElementById('prodModal').classList.remove('hidden'));
+  document.getElementById('npSave').addEventListener('click', saveProduct);
+
+  // billing
+  document.getElementById('billCustPick').addEventListener('click',()=>openPicker('cust'));
+  document.getElementById('billAddProd').addEventListener('click',()=>openPicker('prod'));
+  document.getElementById('billDiscount').addEventListener('input', renderBill);
+  document.getElementById('billSave').addEventListener('click', saveBill);
+  document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>{
+    bill.pay=b.getAttribute('data-pay');
+    document.querySelectorAll('[data-pay]').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  // bill line edits (delegation)
+  document.getElementById('billLines').addEventListener('input',e=>{
+    const inp=e.target.closest('[data-line]'); if(!inp) return;
+    const idx=+inp.getAttribute('data-line'), fld=inp.getAttribute('data-fld');
+    bill.lines[idx][fld]=Math.max(0,parseInt(inp.value)||0);
+    renderBill();
+  });
+  document.getElementById('billLines').addEventListener('click',e=>{
+    const del=e.target.closest('[data-delline]'); if(del){ bill.lines.splice(+del.getAttribute('data-delline'),1); renderBill(); }
+  });
+  // picker
+  document.getElementById('pickSearch').addEventListener('input', renderPicker);
+  document.getElementById('pickRows').addEventListener('click',e=>{
+    const r=e.target.closest('[data-pick]'); if(!r) return;
+    const id=r.getAttribute('data-pick'); // uuid string
+    if(pickMode==='cust'){ bill.custId=id; } else { addBillLine(id); }
+    document.getElementById('pickModal').classList.add('hidden');
+    renderBill();
+  });
+  // product card click -> quick restock (cloud)
+  document.getElementById('prodRows').addEventListener('click', async e=>{
+    const c=e.target.closest('[data-prod]'); if(!c) return;
+    const id=c.getAttribute('data-prod'); // uuid string
+    const add=prompt('Kitne pieces stock add karna hai? (minus ke liye - lagayein)');
+    if(add!==null){
+      const prods=LS.get('products')||[]; const p=prods.find(x=>x.id==id);
+      p.stock=Math.max(0,p.stock+(parseInt(add)||0)); LS.set('products',prods);
+      renderProducts();
+      const ok=await cloudUpdateStock(id, p.stock);
+      showToast(ok?'Stock update ho gaya ✓':'Local update, cloud ruka');
+    }
+  });
+}
+
+checkLogin();
+});
+</script>
+</body>
+</html>
