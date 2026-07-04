@@ -70,6 +70,43 @@
   /* ════════ APP SHELL ════════ */
   #appScreen{max-width:760px;margin:0 auto;padding:0 16px 100px;}
   @media (max-width:400px){ #appScreen{padding:0 10px 100px;} }
+
+  /* ═══════ DESKTOP: poori screen + side menu ═══════ */
+  @media (min-width:900px){
+    #appScreen{ max-width:none; margin:0; padding:0 0 0 240px; min-height:100vh; }
+    .appbar{ padding:20px 40px 16px; max-width:1100px; margin:0 auto; }
+    #appScreen > .view{ max-width:1100px; margin:0 auto; padding:0 40px; }
+    /* tabbar ko side menu bana do */
+    .tabbar{
+      position:fixed; top:0; left:0; bottom:0; right:auto;
+      width:240px; flex-direction:column; justify-content:flex-start;
+      padding:26px 16px; gap:6px; border-top:none; border-right:1px solid var(--line);
+      background:linear-gradient(180deg,var(--ink-2),var(--ink-3)); backdrop-filter:none;
+    }
+    .tabbar::before{
+      content:"Munshi Jee"; font-family:'Fraunces',serif; font-weight:900;
+      font-size:1.4rem; color:var(--gold); padding:0 12px 20px; letter-spacing:-.5px;
+    }
+    .tab{
+      display:flex; align-items:center; gap:14px; text-align:left;
+      font-size:.95rem; padding:13px 16px; border-radius:12px; width:100%;
+    }
+    .tab .ic{ font-size:1.3rem; display:inline; margin:0; }
+    .tab.active{ background:rgba(231,181,60,.12); }
+    .tab.munshi .ic{
+      background:none; width:auto; height:auto; margin:0; border-radius:0;
+      box-shadow:none; display:inline; font-size:1.3rem;
+    }
+    .tab.munshi{ order:0; }
+    /* stat grid desktop pe 4 columns */
+    .stat-grid{ grid-template-columns:repeat(4,1fr); }
+    .quick{ grid-template-columns:repeat(4,1fr); max-width:600px; }
+    /* fab buttons thoda andar */
+    .add-fab{ right:40px; }
+  }
+  @media (min-width:1200px){
+    #appScreen > .view{ max-width:1200px; }
+  }
   .appbar{display:flex;align-items:center;justify-content:space-between;padding:18px 4px 14px;position:sticky;top:0;
     background:linear-gradient(var(--ink) 70%,transparent);z-index:20;}
   .appbar .hi{font-size:.78rem;color:var(--cream-dim);}
@@ -827,21 +864,25 @@ function waReminder(){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
   if(!c) return;
   const bal=custBalance(c);
-  const msg=`Assalam-o-alaikum ${c.name},\nAapka baqaya udhaar ${fmtRs(bal)} hai.\nBaraah-e-karam ada karne ki zehmat karein.\nShukria — Munshi Jee`;
+  const msg=`Assalam-o-alaikum ${c.name},\nAapka baqaya udhaar ${fmtRs(bal)} hai. Baraah-e-karam ada karne ki zehmat karein.\nShukria — Munshi Jee`;
   openWa(c, msg);
 }
 function openWa(c, msg){
   const phone=(c.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'92');
   if(!phone){ showToast('Customer ka phone number nahi hai'); return; }
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const url = isMobile
+    ? `whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`
+    : `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
   showToast('WhatsApp khul raha hai... 🟢');
 }
 function waMaal(kind){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
   if(!c) return;
   const msg = kind==='nikla'
-    ? `Assalam-o-alaikum ${c.name},\nAapka maal rawana ho gaya hai. Jald pohnch jayega, InshaAllah.\n— Munshi Jee`
-    : `Assalam-o-alaikum ${c.name},\nAapka maal pohnch gaya hai. Wusool karke itla kar dein.\nShukria — Munshi Jee`;
+    ? `Assalam-o-alaikum ${c.name},\nAapka maal rawana ho gaya hai. Jald pohnch jayega InshaAllah.\n— Munshi Jee`
+    : `Assalam-o-alaikum ${c.name},\nAapka maal pohnch gaya hai. Wusool karke itla kar dein. Shukria.\n— Munshi Jee`;
   openWa(c, msg);
 }
 function waCustom(){
@@ -853,15 +894,18 @@ function waCustom(){
 function doCall(){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
   if(!c || !c.phone){ showToast('Phone number nahi hai'); return; }
-  window.open('tel:'+c.phone,'_self');
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(isMobile){ window.location.href='tel:'+c.phone; }
+  else { showToast('📞 Number: '+c.phone+' (call phone pe chalegi)'); }
 }
 function smsReminder(){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
   if(!c) return;
   const bal=custBalance(c);
-  const msg=`Munshi Jee: ${c.name}, aapka udhaar ${fmtRs(bal)} baqaya hai. Baraah-e-karam ada karein.`;
-  window.open(`sms:${c.phone}?body=${encodeURIComponent(msg)}`,'_blank');
-  showToast('SMS app khul raha hai... ✉️');
+  const msg=`${c.name}, aapka udhaar ${fmtRs(bal)} baqaya hai. Baraah-e-karam ada karein.`;
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(isMobile){ window.location.href=`sms:${c.phone}?body=${encodeURIComponent(msg)}`; }
+  else { showToast('SMS phone pe chalega. Number: '+c.phone); }
 }
 
 function openLedgerModal(kind){
