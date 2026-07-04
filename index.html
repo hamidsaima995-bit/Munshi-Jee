@@ -332,6 +332,14 @@
         <button class="wa-btn" id="kdWhatsapp">🟢 WhatsApp Yaad Dilao</button>
         <button class="sms-btn2" id="kdSms">✉️ SMS</button>
       </div>
+      <div class="act-row">
+        <button class="sms-btn2" id="kdMaalNikla">🚚 Maal Rawana</button>
+        <button class="sms-btn2" id="kdMaalPohncha">📦 Pohnch Gaya</button>
+        <button class="sms-btn2" id="kdCall">📞 Call</button>
+      </div>
+      <div class="act-row">
+        <button class="sms-btn2" id="kdCustomMsg" style="flex:1;">✍️ Apna Message Likh Kar WhatsApp Karo</button>
+      </div>
       <div class="ledger-add">
         <button class="l-diya" id="kdDiya">+ Maal Diya (Udhaar)</button>
         <button class="l-mila" id="kdMila">− Cash Mila</button>
@@ -618,8 +626,9 @@ async function doForgot(){
   else { showErr('Reset link aapki email par bhej diya hai. Check karein.'); }
 }
 
-// logout
+// logout (confirm ke saath)
 async function doLogout(){
+  if(!confirm('Kya aap sach mein logout karna chahti hain?')) return;
   await sb.auth.signOut();
   location.reload();
 }
@@ -819,9 +828,32 @@ function waReminder(){
   if(!c) return;
   const bal=custBalance(c);
   const msg=`Assalam-o-alaikum ${c.name},\nAapka baqaya udhaar ${fmtRs(bal)} hai.\nBaraah-e-karam ada karne ki zehmat karein.\nShukria — Munshi Jee`;
-  const phone=c.phone.replace(/[^0-9]/g,'').replace(/^0/,'92');
+  openWa(c, msg);
+}
+function openWa(c, msg){
+  const phone=(c.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'92');
+  if(!phone){ showToast('Customer ka phone number nahi hai'); return; }
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
   showToast('WhatsApp khul raha hai... 🟢');
+}
+function waMaal(kind){
+  const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+  if(!c) return;
+  const msg = kind==='nikla'
+    ? `Assalam-o-alaikum ${c.name},\nAapka maal rawana ho gaya hai. Jald pohnch jayega, InshaAllah.\n— Munshi Jee`
+    : `Assalam-o-alaikum ${c.name},\nAapka maal pohnch gaya hai. Wusool karke itla kar dein.\nShukria — Munshi Jee`;
+  openWa(c, msg);
+}
+function waCustom(){
+  const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+  if(!c) return;
+  const msg=prompt('Apna message likhein ('+c.name+' ko):');
+  if(msg && msg.trim()) openWa(c, msg.trim());
+}
+function doCall(){
+  const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+  if(!c || !c.phone){ showToast('Phone number nahi hai'); return; }
+  window.open('tel:'+c.phone,'_self');
 }
 function smsReminder(){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
@@ -893,6 +925,10 @@ function bindKhata(){
   document.getElementById('khataBack').addEventListener('click', closeKhataDetail);
   document.getElementById('kdWhatsapp').addEventListener('click', waReminder);
   document.getElementById('kdSms').addEventListener('click', smsReminder);
+  document.getElementById('kdMaalNikla').addEventListener('click',()=>waMaal('nikla'));
+  document.getElementById('kdMaalPohncha').addEventListener('click',()=>waMaal('pohncha'));
+  document.getElementById('kdCall').addEventListener('click', doCall);
+  document.getElementById('kdCustomMsg').addEventListener('click', waCustom);
   document.getElementById('kdDiya').addEventListener('click',()=>openLedgerModal('diya'));
   document.getElementById('kdMila').addEventListener('click',()=>openLedgerModal('mila'));
   document.getElementById('lmSave').addEventListener('click', saveLedger);
