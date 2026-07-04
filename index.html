@@ -370,6 +370,7 @@
       <div class="fpill active" data-pf="all">Sab</div>
       <div class="fpill" data-pf="low">⚠️ Kam Stock</div>
     </div>
+    <button class="add-prod-btn" id="bulkAddBtn" style="margin-bottom:12px;">📋 Poori List Ek Saath Add Karo</button>
     <div id="prodRows"></div>
     <button class="add-fab" id="prodAddFab">+</button>
   </div>
@@ -453,6 +454,23 @@
 </div>
 
 <div id="toast" class="toast"></div>
+
+<!-- Bulk product add modal -->
+<div id="bulkModal" class="modal-bg hidden">
+  <div class="modal">
+    <span class="mclose" data-close="bulkModal">✕</span>
+    <h3>📋 Poori List Add Karo</h3>
+    <div class="msub">Har line pe ek product — naam, rate, carton pieces, stock, alert<br>Sirf naam bhi chalega (baqi baad mein edit)</div>
+    <div style="background:rgba(231,181,60,.08);border:1px dashed var(--gold-deep);border-radius:10px;padding:10px 12px;font-size:.72rem;color:var(--gold-soft);margin-bottom:12px;">
+      Misal:<br>
+      <b>Lawn Suit 3pc, 1000, 24, 480, 50</b><br>
+      <b>Cotton Shirt, 600, 36, 200, 40</b><br>
+      <b>Chiffon Dupatta</b> (sirf naam — rate baad mein)
+    </div>
+    <textarea id="bulkText" placeholder="PIPE CHINA FITTING, 234, 12, 500, 100&#10;local pipe, 23, 50, 779, 50&#10;..." style="width:100%;min-height:150px;background:var(--ink);border:1px solid var(--line);border-radius:12px;color:var(--cream);font-family:inherit;font-size:.88rem;padding:12px;outline:none;resize:vertical;"></textarea>
+    <button class="btn btn-gold" id="bulkSave" style="margin-top:12px;">Sab Save Karo</button>
+  </div>
+</div>
 
 <script>
 // ════════════════════════════════════════════
@@ -1053,6 +1071,34 @@ function bindStockBilling(){
     renderProducts();
   }));
   document.getElementById('prodAddFab').addEventListener('click',()=>document.getElementById('prodModal').classList.remove('hidden'));
+  document.getElementById('bulkAddBtn').addEventListener('click',()=>document.getElementById('bulkModal').classList.remove('hidden'));
+  document.getElementById('bulkSave').addEventListener('click', async ()=>{
+    const lines=(document.getElementById('bulkText').value||'').split('\n').map(l=>l.trim()).filter(l=>l);
+    if(!lines.length){ showToast('List khaali hai'); return; }
+    const btn=document.getElementById('bulkSave'); btn.disabled=true;
+    let done=0, fail=0;
+    for(const line of lines){
+      const parts=line.split(',').map(s=>s.trim());
+      const p={
+        name:parts[0]||'',
+        cat:'',
+        rate:parseFloat(parts[1])||0,
+        perCarton:parseInt(parts[2])||1,
+        stock:parseInt(parts[3])||0,
+        low:parseInt(parts[4])||0
+      };
+      if(!p.name){ fail++; continue; }
+      btn.textContent='Save... '+(done+1)+'/'+lines.length;
+      const saved=await cloudAddProduct(p);
+      if(saved) done++; else fail++;
+    }
+    btn.textContent='Sab Save Karo'; btn.disabled=false;
+    await cloudLoadProducts();
+    document.getElementById('bulkModal').classList.add('hidden');
+    document.getElementById('bulkText').value='';
+    renderProducts();
+    showToast(done+' products save ho gaye!'+(fail?' ('+fail+' fail)':' 📦'));
+  });
   document.getElementById('npSave').addEventListener('click', saveProduct);
 
   // billing
