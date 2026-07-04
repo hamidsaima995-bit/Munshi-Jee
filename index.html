@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0d0b07"/>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Munshi Jee","short_name":"Munshi Jee","start_url":".","display":"standalone","background_color":"#0d0b07","theme_color":"#0d0b07","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2226%22 fill=%22%23e7b53c%22/%3E%3Cg stroke=%22%231a140c%22 stroke-width=%226%22 fill=%22none%22 stroke-linecap=%22round%22%3E%3Ccircle cx=%2244%22 cy=%2254%22 r=%2215%22/%3E%3Ccircle cx=%2276%22 cy=%2254%22 r=%2215%22/%3E%3Cpath d=%22M59 52 Q60 47 61 52%22/%3E%3C/g%3E%3Crect x=%2242%22 y=%2282%22 width=%2236%22 height=%226%22 rx=%223%22 fill=%22%231a140c%22/%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml"}]}'/>
 <title>Munshi Jee — Business Manager</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -367,12 +369,14 @@
       <div id="kdWarn" class="warn-box hidden"><span>⚠️</span><span id="kdWarnText"></span></div>
       <div class="act-row">
         <button class="wa-btn" id="kdWhatsapp">🟢 WhatsApp Yaad Dilao</button>
-        <button class="sms-btn2" id="kdSms">✉️ SMS</button>
       </div>
       <div class="act-row">
         <button class="sms-btn2" id="kdMaalNikla">🚚 Maal Rawana</button>
         <button class="sms-btn2" id="kdMaalPohncha">📦 Pohnch Gaya</button>
-        <button class="sms-btn2" id="kdCall">📞 Call</button>
+      </div>
+      <div class="act-row">
+        <button class="wa-btn" id="kdWaCall" style="background:#1faf54;">📞 WhatsApp Call</button>
+        <button class="sms-btn2" id="kdCall">📱 SIM Call</button>
       </div>
       <div class="act-row">
         <button class="sms-btn2" id="kdCustomMsg" style="flex:1;">✍️ Apna Message Likh Kar WhatsApp Karo</button>
@@ -517,6 +521,35 @@
   </div>
 </div>
 
+<script>
+// ══════ OFFLINE (PWA) — service worker ══════
+if('serviceWorker' in navigator){
+  const swCode = `
+    const CACHE='munshijee-v1';
+    self.addEventListener('install', e=>{ self.skipWaiting(); });
+    self.addEventListener('activate', e=>{ e.waitUntil(clients.claim()); });
+    self.addEventListener('fetch', e=>{
+      if(e.request.method!=='GET') return;
+      // Supabase API calls cache mat karo (fresh data chahiye)
+      if(e.request.url.includes('supabase.co')) return;
+      e.respondWith(
+        caches.match(e.request).then(cached=>{
+          const fetchP = fetch(e.request).then(res=>{
+            if(res && res.status===200){
+              const clone=res.clone();
+              caches.open(CACHE).then(c=>c.put(e.request, clone));
+            }
+            return res;
+          }).catch(()=>cached);
+          return cached || fetchP;
+        })
+      );
+    });
+  `;
+  const blob = new Blob([swCode], {type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+}
+</script>
 <script>
 // ════════════════════════════════════════════
 //   MUNSHI JEE — CLOUD (Supabase) VERSION
@@ -896,16 +929,17 @@ function doCall(){
   if(!c || !c.phone){ showToast('Phone number nahi hai'); return; }
   const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if(isMobile){ window.location.href='tel:'+c.phone; }
-  else { showToast('📞 Number: '+c.phone+' (call phone pe chalegi)'); }
+  else { showToast('📱 SIM call phone pe chalegi. Number: '+c.phone); }
 }
-function smsReminder(){
+function doWaCall(){
   const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
-  if(!c) return;
-  const bal=custBalance(c);
-  const msg=`${c.name}, aapka udhaar ${fmtRs(bal)} baqaya hai. Baraah-e-karam ada karein.`;
+  if(!c || !c.phone){ showToast('Phone number nahi hai'); return; }
+  const phone=(c.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'92');
+  // WhatsApp chat kholta hai — wahan se call button dabao
   const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if(isMobile){ window.location.href=`sms:${c.phone}?body=${encodeURIComponent(msg)}`; }
-  else { showToast('SMS phone pe chalega. Number: '+c.phone); }
+  const url = isMobile ? `whatsapp://send?phone=${phone}` : `https://wa.me/${phone}`;
+  window.open(url,'_blank');
+  showToast('WhatsApp khul raha — upar 📞 call button dabayein');
 }
 
 function openLedgerModal(kind){
@@ -968,10 +1002,10 @@ function bindKhata(){
   });
   document.getElementById('khataBack').addEventListener('click', closeKhataDetail);
   document.getElementById('kdWhatsapp').addEventListener('click', waReminder);
-  document.getElementById('kdSms').addEventListener('click', smsReminder);
   document.getElementById('kdMaalNikla').addEventListener('click',()=>waMaal('nikla'));
   document.getElementById('kdMaalPohncha').addEventListener('click',()=>waMaal('pohncha'));
   document.getElementById('kdCall').addEventListener('click', doCall);
+  document.getElementById('kdWaCall').addEventListener('click', doWaCall);
   document.getElementById('kdCustomMsg').addEventListener('click', waCustom);
   document.getElementById('kdDiya').addEventListener('click',()=>openLedgerModal('diya'));
   document.getElementById('kdMila').addEventListener('click',()=>openLedgerModal('mila'));
