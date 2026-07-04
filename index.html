@@ -696,7 +696,11 @@ let curFilter='all', curCustId=null, ledgerKind='diya';
 let custDraft={type:'wholesale', time:'1 mahina'};
 
 function custBalance(c){
-  return c.ledger.reduce((s,e)=>s+(e.k==='diya'?e.amt:-e.amt),0);
+  if(!c || !Array.isArray(c.ledger)) return 0;
+  return c.ledger.reduce((s,e)=>{
+    const amt=Math.abs(Number(e.amt)||0); // hamesha positive lo (purana minus data bhi theek)
+    return s + (e.k==='diya' ? amt : -amt);
+  },0);
 }
 function fmtRs(n){ return '₨ '+Number(n).toLocaleString('en-PK'); }
 
@@ -754,7 +758,7 @@ function renderKhataList(){
     const amtTxt=bal>0?fmtRs(bal):'Paid ✓';
     return `<div class="row" data-cust="${c.id}">
       <div class="av">🏪</div>
-      <div class="mid"><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}</small></div>
+      <div class="mid"><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}${c.phone?' · 📱 '+c.phone:''}</small></div>
       <div class="amt ${amtCls}">${amtTxt}<small>${bal>0?c.time:''}</small></div>
     </div>`;
   }).join('');
@@ -764,9 +768,10 @@ function openKhataDetail(id){
   const c=(LS.get('customers')||[]).find(x=>x.id==id);
   if(!c) return;
   curCustId=id;
+  if(!Array.isArray(c.ledger)) c.ledger=[];
   const bal=custBalance(c);
   document.getElementById('kdName').textContent=c.name;
-  document.getElementById('kdMeta').textContent='🏪 '+c.city+' · '+(c.type==='wholesale'?'Wholesale':'Retail');
+  document.getElementById('kdMeta').innerHTML='🏪 '+c.city+' · '+(c.type==='wholesale'?'Wholesale':'Retail')+(c.phone?'<br>📱 '+c.phone:'');
   document.getElementById('kdBal').textContent=fmtRs(bal);
   document.getElementById('kdChip').textContent='⏱ Wapsi: '+c.time;
   // warning if balance > 0
@@ -818,11 +823,12 @@ function openLedgerModal(kind){
   document.getElementById('ledgerModal').classList.remove('hidden');
 }
 async function saveLedger(){
-  const amt=parseFloat(document.getElementById('lmAmount').value);
+  let amt=Math.abs(parseFloat(document.getElementById('lmAmount').value)||0);
   if(!amt||amt<=0){ showToast('Sahi raqam daalein'); return; }
   const note=document.getElementById('lmNote').value.trim();
   const custs=LS.get('customers')||[];
   const c=custs.find(x=>x.id==curCustId);
+  if(!Array.isArray(c.ledger)) c.ledger=[];
   const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
   c.ledger.push({k:ledgerKind,amt,note,date});
   LS.set('customers',custs);
@@ -1000,10 +1006,13 @@ async function saveBill(){
   if(bill.pay==='udhaar'){
     const custs=LS.get('customers')||[];
     const c=custs.find(x=>x.id==bill.custId);
-    const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-    c.ledger.push({k:'diya',amt:total,note:noteParts.join(', '),date});
-    LS.set('customers',custs);
-    await cloudUpdateLedger(bill.custId, c.ledger);
+    if(c){
+      if(!Array.isArray(c.ledger)) c.ledger=[];
+      const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+      c.ledger.push({k:'diya',amt:Math.abs(total),note:noteParts.join(', '),date});
+      LS.set('customers',custs);
+      await cloudUpdateLedger(bill.custId, c.ledger);
+    }
   }
   btn.textContent='Bikri Save Karo'; btn.disabled=false;
   showToast(bill.pay==='udhaar'?'Bikri udhaar khate mein! 📒':'Bikri save ho gayi! ✓ '+fmtRs(total));
