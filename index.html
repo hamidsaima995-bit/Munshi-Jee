@@ -841,12 +841,13 @@ function startVoice(){
 let _mjVoice=null;
 function pickDesiVoice(){
   const vs=window.speechSynthesis.getVoices()||[];
-  // pehle Urdu, phir Hindi, phir koi bhi 'ur'/'hi' wali
-  _mjVoice = vs.find(v=>/ur-PK|ur_PK/i.test(v.lang))
-          || vs.find(v=>/\bur\b/i.test(v.lang))
-          || vs.find(v=>/hi-IN|hi_IN/i.test(v.lang))
-          || vs.find(v=>/\bhi\b/i.test(v.lang))
-          || vs.find(v=>/india|pakistan|urdu|hindi/i.test(v.name))
+  const desi=vs.filter(v=>/ur|hi/i.test(v.lang)||/urdu|hindi|india|pakistan/i.test(v.name));
+  // pehle male desi awaaz dhundo
+  _mjVoice = desi.find(v=>/male|man|ravi|hemant|prabhat|salman|asad/i.test(v.name))
+          || desi.find(v=>/ur-PK|ur_PK/i.test(v.lang))
+          || desi.find(v=>/hi-IN|hi_IN/i.test(v.lang))
+          || desi[0]
+          || vs.find(v=>/male/i.test(v.name))
           || null;
 }
 if('speechSynthesis' in window){
@@ -860,87 +861,130 @@ function munshiSpeak(text){
     if(!_mjVoice) pickDesiVoice();
     if(_mjVoice){ u.voice=_mjVoice; u.lang=_mjVoice.lang; }
     else { u.lang='ur-PK'; }
-    u.rate=0.92;   // thoda aahista — saaf lage
-    u.pitch=1.0;
+    u.rate=0.92;
+    u.pitch=0.8;   // neechi awaaz — mardana lage
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
 
-// MUFT local samajh (bina paisa, link pe chalega)
+// MUFT local samajh — SAB FEATURES voice se
 function munshiThink(text){
   const reply=document.getElementById('munshiReply');
   const rtext=document.getElementById('munshiReplyText');
   reply.style.display='block';
   document.getElementById('munshiActions').innerHTML='';
+  const say=(m,h)=>{ rtext.innerHTML=h||m; munshiSpeak(m); };
 
   const t=text.toLowerCase();
   const custs=LS.get('customers')||[];
 
-  // Urdu -> Roman transliteration (aam naam/lafz)
+  // Urdu -> Roman
   const urduMap={
     'بلال':'bilal','حامد':'hamid','مالک':'malik','علی':'ali','احمد':'ahmed','اسلم':'aslam',
-    'کھاتہ':'khata','نکالو':'nikalo','دکھاؤ':'dikhao','دکھاو':'dikhao','ادھار':'udhaar',
-    'لکھو':'likho','ہزار':'hazaar','لاکھ':'lakh','دیا':'diya','ملا':'mila','کو':'ko','کا':'ka','روپے':'rupay'
+    'کھاتہ':'khata','نکالو':'nikalo','دکھاؤ':'dikhao','دکھاو':'dikhao','کھولو':'kholo','ادھار':'udhaar',
+    'لکھو':'likho','ہزار':'hazaar','لاکھ':'lakh','دیا':'diya','ملا':'mila','کو':'ko','کا':'ka','روپے':'rupay',
+    'اسٹاک':'stock','سٹاک':'stock','بلٹی':'bilty','بکری':'bikri','کال':'call','فون':'phone',
+    'واٹس ایپ':'whatsapp','واٹساپ':'whatsapp','یاد':'yaad','روانہ':'rawana','پہنچ':'pohnch',
+    'سیل':'sale','آج':'aaj','کل':'total','گاہک':'customer','پروڈکٹ':'product','لاگ آوٹ':'logout','ہوم':'home'
   };
   let roman=text;
   Object.keys(urduMap).forEach(u=>{ roman=roman.split(u).join(' '+urduMap[u]+' '); });
   const tr=roman.toLowerCase();
+  const work=(t+' '+tr);
 
-  // Customer dhundo — Urdu ya English dono taraf
+  // Customer dhundo
   let cust=null;
   for(const c of custs){
     const nm=(c.name||'').toLowerCase();
     const first=nm.split(' ')[0];
-    // English text mein
-    if(t.includes(nm) || (first.length>=3 && t.includes(first))){ cust=c; break; }
-    // transliterated text mein
-    if(tr.includes(nm) || (first.length>=3 && tr.includes(first))){ cust=c; break; }
-    // Urdu naam seedha text mein
-    if(text.includes(c.name)){ cust=c; break; }
+    if(t.includes(nm)||(first.length>=3&&t.includes(first))||tr.includes(nm)||(first.length>=3&&tr.includes(first))||text.includes(c.name)){ cust=c; break; }
   }
 
-  // amount + kind (transliterated text pe kaam karo)
-  const work=(t+' '+tr);
+  // ══ GLOBAL COMMANDS (customer ki zaroorat nahi) ══
+  if(/\bstock\b/.test(work) && /dikhao|kholo|dekho|nikalo/.test(work)){
+    say('Stock khol raha hoon.'); setTimeout(()=>goView('stock'),800); return;
+  }
+  if(/bilty|bikri|nayi sale/.test(work) && /banao|kholo|karo|nayi/.test(work)){
+    say('Nayi bikri khol raha hoon.'); setTimeout(()=>goView('bilty'),800); return;
+  }
+  if(/\bhome\b|dashboard/.test(work)){
+    say('Home khol raha hoon.'); setTimeout(()=>goView('home'),800); return;
+  }
+  if(/logout|bahar niklo/.test(work)){
+    say('Logout kar raha hoon.'); setTimeout(()=>doLogout(),1000); return;
+  }
+  if(/customer (add|banao|dalo)/.test(work) || /naya customer|naya gahak/.test(work)){
+    say('Naya customer form khol raha hoon.');
+    setTimeout(()=>{ goView('khata'); document.getElementById('custModal').classList.remove('hidden'); },800); return;
+  }
+  if(/product (add|banao|dalo)/.test(work) || /naya product|naya maal/.test(work)){
+    say('Naya product form khol raha hoon.');
+    setTimeout(()=>{ goView('stock'); document.getElementById('prodModal').classList.remove('hidden'); },800); return;
+  }
+  if(/aaj ki sale|aaj ki bikri|kitni sale/.test(work)){
+    const sales=LS.get('sales')||[]; const today=new Date().toDateString();
+    let sum=0,n=0; sales.forEach(s=>{ if(new Date(s.created_at).toDateString()===today){ sum+=Math.abs(Number(s.total)||0); n++; } });
+    say(`Aaj ki sale ${window.fmtRs(sum)} hai, ${n} saude.`); return;
+  }
+  if(/total udhaar|kitna udhaar sab|sara udhaar/.test(work)){
+    let sum=0,n=0; custs.forEach(c=>{ const b=window.custBalance(c); if(b>0){ sum+=b; n++; } });
+    say(`Total udhaar ${window.fmtRs(sum)} hai, ${n} customers pe.`); return;
+  }
+
+  // ══ CUSTOMER COMMANDS ══
+  const phoneOf=c=>(c.phone||'').replace(/[^0-9]/g,'').replace(/^0/,'92');
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if(cust && /\bcall\b|phone karo|phone milao/.test(work)){
+    if(!cust.phone){ say(cust.name+' ka number save nahi.'); return; }
+    say(cust.name+' ko call mila raha hoon.');
+    setTimeout(()=>{ if(isMobile) window.location.href='tel:'+cust.phone; else showToast('Number: '+cust.phone); },1000); return;
+  }
+  if(cust && /whatsapp|yaad dilao|reminder/.test(work) && !/rawana|pohnch/.test(work)){
+    const bal=window.custBalance(cust);
+    const msg=`Assalam-o-alaikum ${cust.name},\nAapka baqaya udhaar ${window.fmtRs(bal)} hai. Baraah-e-karam ada karne ki zehmat karein.\nShukria — Munshi Jee`;
+    say(cust.name+' ko WhatsApp yaad-dehani bhej raha hoon.');
+    setTimeout(()=>{ const u=isMobile?`whatsapp://send?phone=${phoneOf(cust)}&text=${encodeURIComponent(msg)}`:`https://wa.me/${phoneOf(cust)}?text=${encodeURIComponent(msg)}`; window.open(u,'_blank'); },1000); return;
+  }
+  if(cust && /rawana/.test(work)){
+    const msg=`Assalam-o-alaikum ${cust.name},\nAapka maal rawana ho gaya hai. Jald pohnch jayega InshaAllah.\n— Munshi Jee`;
+    say(cust.name+' ko maal rawana ka message bhej raha hoon.');
+    setTimeout(()=>{ const u=isMobile?`whatsapp://send?phone=${phoneOf(cust)}&text=${encodeURIComponent(msg)}`:`https://wa.me/${phoneOf(cust)}?text=${encodeURIComponent(msg)}`; window.open(u,'_blank'); },1000); return;
+  }
+  if(cust && /pohnch/.test(work)){
+    const msg=`Assalam-o-alaikum ${cust.name},\nAapka maal pohnch gaya hai. Wusool karke itla kar dein. Shukria.\n— Munshi Jee`;
+    say(cust.name+' ko maal pohnchne ka message bhej raha hoon.');
+    setTimeout(()=>{ const u=isMobile?`whatsapp://send?phone=${phoneOf(cust)}&text=${encodeURIComponent(msg)}`:`https://wa.me/${phoneOf(cust)}?text=${encodeURIComponent(msg)}`; window.open(u,'_blank'); },1000); return;
+  }
+
+  // amount
   let amount=0;
   const digitMatch=(text.replace(/[,]/g,'')).match(/\d+/);
   if(digitMatch) amount=parseInt(digitMatch[0]);
   if(/hazaar|hazar|hzar/i.test(work)){
     const n=work.match(/(\d+)\s*(hazaar|hazar|hzar)/i);
-    if(n) amount=parseInt(n[1])*1000; else if(amount>0 && amount<1000) amount=amount*1000;
+    if(n) amount=parseInt(n[1])*1000; else if(amount>0&&amount<1000) amount*=1000;
   }
   if(/lakh|lac/i.test(work)){
     const n=work.match(/(\d+)\s*(lakh|lac)/i);
-    if(n) amount=parseInt(n[1])*100000; else if(amount>0 && amount<100) amount=amount*100000;
+    if(n) amount=parseInt(n[1])*100000; else if(amount>0&&amount<100) amount*=100000;
   }
 
-  // COMMAND: khata dikhao/nikalo (raqam nahi hai)
+  // khata dikhao/nikalo
   const wantsShow=/dikhao|dekho|nikalo|nikal|kholo|kitna|baqaya|balance/i.test(work);
-  if(wantsShow && (!amount || amount<=0)){
-    if(!cust){
-      const msg='Kis customer ka khata? Naam saaf boliye.';
-      rtext.textContent=msg; munshiSpeak(msg); return;
-    }
-    const bal=custBalance(cust);
-    const msg = bal>0 ? `${cust.name} ka baqaya udhaar ${fmtRs(bal)} hai.` : `${cust.name} ka koi udhaar baqi nahi.`;
-    rtext.textContent=msg; munshiSpeak(msg);
-    setTimeout(()=>{ goView('khata'); setTimeout(()=>openKhataDetail(cust.id),300); },1200);
+  if(wantsShow && (!amount||amount<=0)){
+    if(!cust){ say('Kis customer ka khata? Naam saaf boliye.'); return; }
+    const bal=window.custBalance(cust);
+    say(bal>0?`${cust.name} ka baqaya udhaar ${window.fmtRs(bal)} hai.`:`${cust.name} ka koi udhaar baqi nahi.`);
+    setTimeout(()=>{ goView('khata'); setTimeout(()=>window.openKhataDetail(cust.id),300); },1200);
     return;
   }
 
-  // COMMAND: udhaar/payment likho
+  // udhaar/payment likho
   let kind='diya';
   if(/mila|milay|payment|wapas|ada|jama/i.test(work)) kind='mila';
-
-  if(!cust){
-    const msg='Customer ka naam samajh nahi aaya. Boliye jaise: Bilal ko 30 hazaar udhaar likho.';
-    rtext.innerHTML='Customer ka naam samajh nahi aaya.<br>Boliye: <b>"Bilal ko 30 hazaar udhaar likho"</b><br><small>(Naam waisa bolein jaisa Khata mein save hai)</small>';
-    munshiSpeak(msg); return;
-  }
-  if(!amount || amount<=0){
-    const msg=`${cust.name} mil gaya. Kitni raqam? Boliye jaise 30 hazaar.`;
-    rtext.innerHTML=`<b>${cust.name}</b> mil gaya, raqam boliye.<br><b>"${cust.name} ko 30 hazaar udhaar"</b>`;
-    munshiSpeak(msg); return;
-  }
+  if(!cust){ say('Customer ka naam samajh nahi aaya. Boliye: Bilal ko 30 hazaar udhaar likho.','Customer ka naam samajh nahi aaya.<br>Boliye: <b>"Bilal ko 30 hazaar udhaar likho"</b>'); return; }
+  if(!amount||amount<=0){ say(`${cust.name} mil gaya. Kitni raqam? Boliye jaise 30 hazaar.`,`<b>${cust.name}</b> mil gaya, raqam boliye.<br><b>"${cust.name} ko 30 hazaar udhaar"</b>`); return; }
   showMunshiResult({action:kind==='mila'?'payment':'udhaar', customer:cust.name, amount, note:'Munshi voice'});
 }
 
@@ -1061,6 +1105,9 @@ document.addEventListener('DOMContentLoaded', function(){
   window.renderKhataList=renderKhataList;
   window.renderProducts=renderProducts;
   window.renderBill=renderBill;
+  window.openKhataDetail=openKhataDetail;
+  window.custBalance=custBalance;
+  window.fmtRs=fmtRs;
 
   // ════════ KHATA MODULE ════════
 let curFilter='all', curCustId=null, ledgerKind='diya';
