@@ -68,6 +68,17 @@
   .or-line{display:flex;align-items:center;gap:12px;margin:16px 0 6px;color:var(--cream-dim);font-size:.72rem;}
   .or-line::before,.or-line::after{content:"";flex:1;height:1px;background:var(--line);}
   .logout-x{cursor:pointer;font-size:.72rem;color:var(--cream-dim);border:1px solid var(--line);border-radius:10px;padding:6px 11px;background:var(--ink-3);}
+  .brand-top{font-family:'Fraunces',serif;font-weight:900;font-size:1.15rem;letter-spacing:-.3px;line-height:1.2;}
+  .brand-top span{color:var(--gold);}
+  .hi2{font-size:.7rem;color:var(--cream-dim);}
+  /* ═══ LIGHT MODE ═══ */
+  body.light{
+    --ink:#f3eee1;--ink-2:#ffffff;--ink-3:#faf6ec;--ink-4:#ece5d3;
+    --cream:#241c0c;--cream-dim:#7a7160;--line:rgba(169,120,31,.28);
+    --shadow:0 12px 30px rgba(60,45,10,.14);
+    --shadow-gold:0 8px 22px rgba(231,181,60,.4);
+  }
+  body.light .stat,body.light .card-list,body.light .prod-card,body.light .bill-line,body.light .qbtn{box-shadow:0 4px 14px rgba(60,45,10,.08);}
 
   /* ════════ APP SHELL ════════ */
   #appScreen{max-width:760px;margin:0 auto;padding:0 16px 100px;}
@@ -312,12 +323,18 @@
 <!-- ════════ APP SCREEN ════════ -->
 <div id="appScreen" class="hidden">
   <div class="appbar">
-    <div class="hi">Assalam-o-alaikum<b id="userName">—</b></div>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span class="logout-x" id="btnLogout">Logout</span>
+    <div style="display:flex;align-items:center;gap:12px;">
       <div class="logo-sm">
         <svg width="24" height="24" viewBox="0 0 120 120"><g stroke="#1a140c" stroke-width="6" fill="none" stroke-linecap="round"><circle cx="44" cy="54" r="15"/><circle cx="76" cy="54" r="15"/><path d="M59 52 Q60 47 61 52"/></g><rect x="42" y="82" width="36" height="6" rx="3" fill="#1a140c"/></svg>
       </div>
+      <div>
+        <div class="brand-top">Munshi <span>Jee</span></div>
+        <div class="hi2">Assalam-o-alaikum, <b id="userName">—</b></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="logout-x" id="btnTheme" title="Light/Dark">🌙</span>
+      <span class="logout-x" id="btnLogout">Logout</span>
     </div>
   </div>
 
@@ -393,6 +410,7 @@
       </div>
       <div class="sec-title">Hisaab</div>
       <div id="kdLedger" class="card-list"></div>
+      <button class="back-btn" id="kdDelete" style="color:var(--red);margin-top:16px;">🗑 Customer Delete Karo</button>
     </div>
 
     <button class="add-fab" id="khataAddFab">+</button>
@@ -643,6 +661,24 @@ async function cloudAddSale(s){
   if(error){ console.error('sale save:',error); return null; }
   return data;
 }
+async function cloudDeleteCustomer(id){
+  const { error } = await sb.from('customers').delete().eq('id',id);
+  if(error){ showToast('Delete nahi hua: '+error.message); return false; }
+  return true;
+}
+async function cloudDeleteProduct(id){
+  const { error } = await sb.from('products').delete().eq('id',id);
+  if(error){ showToast('Delete nahi hua: '+error.message); return false; }
+  return true;
+}
+
+// ══════ LIGHT/DARK MODE ══════
+function applyTheme(t){
+  document.body.classList.toggle('light', t==='light');
+  LS.set('theme', t);
+  const b=document.getElementById('btnTheme');
+  if(b) b.textContent = t==='light' ? '☀️' : '🌙';
+}
 
 function showToast(msg){
   const t=document.getElementById('toast');
@@ -782,6 +818,17 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btnGoogleLogin').addEventListener('click', doGoogle);
   document.getElementById('btnGoogleSignup').addEventListener('click', doGoogle);
   document.getElementById('btnLogout').addEventListener('click', doLogout);
+  document.getElementById('btnTheme').addEventListener('click', ()=>{
+    applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+  });
+  applyTheme(LS.get('theme')||'dark');
+  document.getElementById('kdDelete').addEventListener('click', async ()=>{
+    const c=(LS.get('customers')||[]).find(x=>x.id==curCustId);
+    if(!c) return;
+    if(!confirm('"'+c.name+'" ko delete karein? Iska poora hisaab bhi delete ho jayega. Yeh wapas nahi aayega!')) return;
+    const ok=await cloudDeleteCustomer(curCustId);
+    if(ok){ await cloudLoadCustomers(); closeKhataDetail(); showToast('Customer delete ho gaya'); }
+  });
 
   // password eye toggles
   document.querySelectorAll('.eye').forEach(eye=>{
@@ -820,6 +867,25 @@ function custBalance(c){
     const amt=Math.abs(Number(e.amt)||0); // hamesha positive lo (purana minus data bhi theek)
     return s + (e.k==='diya' ? amt : -amt);
   },0);
+}
+// udhaar ka time guzar gaya? (15 din / 1 mahina waghera)
+function timeLimitDays(t){
+  const map={'15 din':15,'1 mahina':30,'3 mahine':90,'6 mahine':180,'1 saal':365};
+  if(map[t]) return map[t];
+  const n=parseInt(t); return n>0 ? n : 30;
+}
+function overdueDays(c){
+  if(custBalance(c)<=0 || !Array.isArray(c.ledger)) return 0;
+  // aakhri 'diya' entry jismein iso date ho
+  for(let i=c.ledger.length-1;i>=0;i--){
+    const e=c.ledger[i];
+    if(e.k==='diya' && e.iso){
+      const days=Math.floor((Date.now()-new Date(e.iso).getTime())/86400000);
+      const limit=timeLimitDays(c.time);
+      return days>limit ? days-limit : 0;
+    }
+  }
+  return 0;
 }
 function fmtRs(n){ return '₨ '+Number(n).toLocaleString('en-PK'); }
 
@@ -908,7 +974,7 @@ function renderKhataList(){
   const filtered=custs.filter(c=>{
     const bal=custBalance(c);
     if(curFilter==='udhaar'&&bal<=0) return false;
-    if(curFilter==='warn'&&bal<=0) return false;
+    if(curFilter==='warn'&&overdueDays(c)<=0) return false;
     if(curFilter==='wholesale'&&c.type!=='wholesale') return false;
     if(curFilter==='retail'&&c.type!=='retail') return false;
     if(q&&!(c.name.toLowerCase().includes(q)||c.shop.toLowerCase().includes(q)||c.city.toLowerCase().includes(q))) return false;
@@ -917,12 +983,14 @@ function renderKhataList(){
   if(!filtered.length){ box.innerHTML='<div style="text-align:center;padding:30px;color:var(--cream-dim);font-size:.85rem;">Koi customer nahi mila</div>'; return; }
   box.innerHTML=filtered.map(c=>{
     const bal=custBalance(c);
+    const od=overdueDays(c);
     const amtCls=bal>0?'red':'green';
     const amtTxt=bal>0?fmtRs(bal):'Paid ✓';
+    const timeTxt=bal>0 ? (od>0 ? '⚠️ '+od+' din upar' : c.time) : '';
     return `<div class="row" data-cust="${c.id}">
       <div class="av">🏪</div>
       <div class="mid"><b>${c.name}</b><small>${c.city} · ${c.type==='wholesale'?'Wholesale':'Retail'}${c.phone?' · 📱 '+c.phone:''}</small></div>
-      <div class="amt ${amtCls}">${amtTxt}<small>${bal>0?c.time:''}</small></div>
+      <div class="amt ${amtCls}">${amtTxt}<small>${timeTxt}</small></div>
     </div>`;
   }).join('');
 }
@@ -939,7 +1007,13 @@ function openKhataDetail(id){
   document.getElementById('kdChip').textContent='⏱ Wapsi: '+c.time;
   // warning if balance > 0
   const warn=document.getElementById('kdWarn');
-  if(bal>0){ warn.classList.remove('hidden'); document.getElementById('kdWarnText').textContent='Udhaar baqaya hai — wapsi ka time: '+c.time+'. Reminder bhejein.'; }
+  if(bal>0){
+    const od=overdueDays(c);
+    warn.classList.remove('hidden');
+    document.getElementById('kdWarnText').textContent = od>0
+      ? 'Udhaar ka time '+od+' din GUZAR chuka hai! Foran reminder bhejein.'
+      : 'Udhaar baqaya hai — wapsi ka time: '+c.time+'. Reminder bhejein.';
+  }
   else warn.classList.add('hidden');
   // ledger
   document.getElementById('kdLedger').innerHTML=c.ledger.slice().reverse().map(e=>`
@@ -1024,7 +1098,7 @@ async function saveLedger(){
   const c=custs.find(x=>x.id==curCustId);
   if(!Array.isArray(c.ledger)) c.ledger=[];
   const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-  c.ledger.push({k:ledgerKind,amt,note,date});
+  c.ledger.push({k:ledgerKind,amt,note,date,iso:new Date().toISOString()});
   LS.set('customers',custs);
   document.getElementById('ledgerModal').classList.add('hidden');
   openKhataDetail(curCustId);
@@ -1116,7 +1190,7 @@ function renderProducts(){
         <div class="unit-hint">Stock: ${p.stock} pcs (${cartons} carton${pieces?' + '+pieces+' pcs':''})</div>
         <span class="stock-pill ${low?'stock-low':'stock-ok'}">${low?'⚠️ Kam stock':'✓ Stock theek'}</span>
       </div>
-      <div class="right"><div class="rate">₨${p.rate}</div><div class="unit-hint">/piece</div></div>
+      <div class="right"><div class="rate">₨${p.rate}</div><div class="unit-hint">/piece</div><span data-delprod="${p.id}" style="cursor:pointer;font-size:.95rem;display:inline-block;margin-top:6px;">🗑</span></div>
     </div>`;
   }).join('');
 }
@@ -1216,7 +1290,7 @@ async function saveBill(){
     if(c){
       if(!Array.isArray(c.ledger)) c.ledger=[];
       const d=new Date(); const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-      c.ledger.push({k:'diya',amt:Math.abs(total),note:noteParts.join(', '),date});
+      c.ledger.push({k:'diya',amt:Math.abs(total),note:noteParts.join(', '),date,iso:new Date().toISOString()});
       LS.set('customers',custs);
       await cloudUpdateLedger(bill.custId, c.ledger);
     }
@@ -1318,8 +1392,18 @@ function bindStockBilling(){
     document.getElementById('pickModal').classList.add('hidden');
     renderBill();
   });
-  // product card click -> quick restock (cloud)
+  // product card click -> delete ya quick restock (cloud)
   document.getElementById('prodRows').addEventListener('click', async e=>{
+    const del=e.target.closest('[data-delprod]');
+    if(del){
+      const id=del.getAttribute('data-delprod');
+      const prods=LS.get('products')||[]; const p=prods.find(x=>x.id==id);
+      if(!p) return;
+      if(!confirm('"'+p.name+'" ko delete karein? Yeh wapas nahi aayega!')) return;
+      const ok=await cloudDeleteProduct(id);
+      if(ok){ await cloudLoadProducts(); renderProducts(); showToast('Product delete ho gaya'); }
+      return;
+    }
     const c=e.target.closest('[data-prod]'); if(!c) return;
     const id=c.getAttribute('data-prod'); // uuid string
     const add=prompt('Kitne pieces stock add karna hai? (minus ke liye - lagayein)');
