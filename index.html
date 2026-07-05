@@ -324,10 +324,10 @@
   <!-- HOME VIEW -->
   <div id="view-home" class="view">
     <div class="stat-grid">
+      <div class="stat"><div class="lab">Aaj ki Sale</div><div class="val g" id="statTodaySale">₨ 0</div><div class="sub" id="statTodaySub">0 saude</div></div>
       <div class="stat"><div class="lab">Total Udhaar</div><div class="val red" id="statUdhaar">₨ 0</div><div class="sub" id="statUdhaarSub">0 customers</div></div>
-      <div class="stat"><div class="lab">Customers</div><div class="val g" id="statCust">0</div><div class="sub" id="statCustSub">total</div></div>
+      <div class="stat"><div class="lab">Is Mahine</div><div class="val green" id="statMonthSale">₨ 0</div><div class="sub" id="statMonthSub">0 saude</div></div>
       <div class="stat"><div class="lab">Stock Items</div><div class="val" id="statStock">0</div><div class="sub" id="statStockSub">0 kam ho rahe</div></div>
-      <div class="stat"><div class="lab">Warning Wale</div><div class="val red" id="statWarn">0</div><div class="sub">udhaar zyada</div></div>
     </div>
 
     <div class="sec-title">Jaldi Kaam</div>
@@ -340,6 +340,12 @@
 
     <div class="sec-title">Udhaar Wale <a data-go="khata">Sab dekho →</a></div>
     <div class="card-list" id="homeUdhaarList"></div>
+
+    <div class="sec-title">📊 Report</div>
+    <div class="card-list" id="homeReport" style="padding:14px 16px;"></div>
+
+    <div class="sec-title">Aakhri Bikriyan</div>
+    <div class="card-list" id="homeSalesList"></div>
   </div>
 
   <!-- Other views (placeholders for now — Part 2 mein banayenge) -->
@@ -623,6 +629,21 @@ async function cloudUpdateStock(prodId, stock){
   return true;
 }
 
+// ══════ SALES (bikri ka record) ══════
+async function cloudLoadSales(){
+  const { data, error } = await sb.from('sales').select('*').order('created_at',{ascending:false}).limit(500);
+  if(error){ console.error('sales load:',error); return LS.get('sales')||[]; }
+  LS.set('sales', data||[]);
+  return data||[];
+}
+async function cloudAddSale(s){
+  const { data, error } = await sb.from('sales').insert({
+    customer_name:s.customer_name, items:s.items, total:s.total, pay:s.pay
+  }).select().single();
+  if(error){ console.error('sale save:',error); return null; }
+  return data;
+}
+
 function showToast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -717,6 +738,7 @@ async function afterLogin(){
   showToast('Data cloud se aa raha hai...');
   await cloudLoadCustomers();
   await cloudLoadProducts();
+  await cloudLoadSales();
   goView('home');
 }
 
@@ -805,19 +827,63 @@ function fmtRs(n){ return '₨ '+Number(n).toLocaleString('en-PK'); }
 function renderHome(){
   const custs=LS.get('customers')||[];
   const prods=LS.get('products')||[];
-  let totalUdhaar=0, udhaarCount=0, warnCount=0;
+  const sales=LS.get('sales')||[];
+  let totalUdhaar=0, udhaarCount=0;
   custs.forEach(c=>{
     const bal=custBalance(c);
-    if(bal>0){ totalUdhaar+=bal; udhaarCount++; if(bal>=50000) warnCount++; }
+    if(bal>0){ totalUdhaar+=bal; udhaarCount++; }
   });
   const lowStock=prods.filter(p=>p.stock<=p.low).length;
+
+  // sales calculations
+  const now=new Date();
+  const todayStr=now.toDateString();
+  const thisMonth=now.getMonth(), thisYear=now.getFullYear();
+  let todaySale=0, todayCount=0, monthSale=0, monthCount=0, weekSale=0;
+  const weekAgo=new Date(now.getTime()-7*24*60*60*1000);
+  sales.forEach(s=>{
+    const d=new Date(s.created_at);
+    const amt=Math.abs(Number(s.total)||0);
+    if(d.toDateString()===todayStr){ todaySale+=amt; todayCount++; }
+    if(d.getMonth()===thisMonth && d.getFullYear()===thisYear){ monthSale+=amt; monthCount++; }
+    if(d>=weekAgo){ weekSale+=amt; }
+  });
+
   const setTxt=(id,txt)=>{ const el=document.getElementById(id); if(el) el.textContent=txt; };
+  setTxt('statTodaySale', fmtRs(todaySale));
+  setTxt('statTodaySub', todayCount+' saude');
   setTxt('statUdhaar', fmtRs(totalUdhaar));
   setTxt('statUdhaarSub', udhaarCount+' customers');
-  setTxt('statCust', custs.length);
+  setTxt('statMonthSale', fmtRs(monthSale));
+  setTxt('statMonthSub', monthCount+' saude');
   setTxt('statStock', prods.length);
   setTxt('statStockSub', lowStock+' kam ho rahe');
-  setTxt('statWarn', warnCount);
+
+  // report box
+  const rep=document.getElementById('homeReport');
+  if(rep){
+    rep.innerHTML=`
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="color:var(--cream-dim);font-size:.82rem;">Aaj ki bikri</span><b>${fmtRs(todaySale)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="color:var(--cream-dim);font-size:.82rem;">Is hafte (7 din)</span><b>${fmtRs(weekSale)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);"><span style="color:var(--cream-dim);font-size:.82rem;">Is mahine</span><b style="color:var(--green);">${fmtRs(monthSale)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;"><span style="color:var(--cream-dim);font-size:.82rem;">Total udhaar (baqaya)</span><b style="color:var(--red);">${fmtRs(totalUdhaar)}</b></div>`;
+  }
+
+  // aakhri bikriyan (last 5)
+  const slist=document.getElementById('homeSalesList');
+  if(slist){
+    const recent=sales.slice(0,5);
+    slist.innerHTML = recent.length ? recent.map(s=>{
+      const d=new Date(s.created_at);
+      const date=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+      return `<div class="row" style="cursor:default;">
+        <div class="av">${s.pay==='udhaar'?'📒':'💵'}</div>
+        <div class="mid"><b>${s.customer_name||'—'}</b><small>${date} · ${(s.items||'').slice(0,40)}</small></div>
+        <div class="amt ${s.pay==='udhaar'?'red':'green'}">${fmtRs(s.total)}<small>${s.pay==='udhaar'?'Udhaar':'Cash'}</small></div>
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:20px;color:var(--cream-dim);font-size:.82rem;">Abhi koi bikri nahi — Bilty se bikri karo</div>';
+  }
+
   // udhaar wale list (top 5 by balance)
   const box=document.getElementById('homeUdhaarList');
   if(!box) return;
@@ -1134,6 +1200,15 @@ async function saveBill(){
   const btn=document.getElementById('billSave'); btn.textContent='Save ho raha...'; btn.disabled=true;
   // cloud: har product ka stock update karo
   for(const su of stockUpdates){ await cloudUpdateStock(su.id, su.stock); }
+  // SALE RECORD — har bikri (cash + udhaar) cloud mein
+  const custForSale=(LS.get('customers')||[]).find(x=>x.id==bill.custId);
+  await cloudAddSale({
+    customer_name: custForSale ? custForSale.name : '—',
+    items: noteParts.join(', '),
+    total: Math.abs(total),
+    pay: bill.pay
+  });
+  await cloudLoadSales();
   // udhaar -> customer ledger cloud mein
   if(bill.pay==='udhaar'){
     const custs=LS.get('customers')||[];
@@ -1242,7 +1317,7 @@ function bindStockBilling(){
     if(pickMode==='cust'){ bill.custId=id; } else { addBillLine(id); }
     document.getElementById('pickModal').classList.add('hidden');
     renderBill();
-  });C
+  });
   // product card click -> quick restock (cloud)
   document.getElementById('prodRows').addEventListener('click', async e=>{
     const c=e.target.closest('[data-prod]'); if(!c) return;
