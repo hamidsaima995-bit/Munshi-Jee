@@ -837,61 +837,75 @@ function startVoice(){
   recog.onend=()=>{ recognizing=false; document.getElementById('munshiMic').style.filter=''; document.getElementById('munshiStatus').textContent='Mic dabao aur boliye'; };
 }
 
-// Claude API ke bajaye — MUFT local samajh (bina paisa, link pe chalega)
+// Munshi bol ke jawab de (muft browser text-to-speech)
+function munshiSpeak(text){
+  try{
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='ur-PK'; u.rate=0.95;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+// MUFT local samajh (bina paisa, link pe chalega)
 function munshiThink(text){
   const reply=document.getElementById('munshiReply');
   const rtext=document.getElementById('munshiReplyText');
   reply.style.display='block';
+  document.getElementById('munshiActions').innerHTML='';
 
   const t=text.toLowerCase();
   const custs=LS.get('customers')||[];
 
-  // 1) Amount nikaalo (30000, "30 hazaar", "2 lakh", Urdu numbers)
-  let amount=0;
-  // seedhe digits
-  const digitMatch=text.replace(/[,]/g,'').match(/\d+/);
-  if(digitMatch) amount=parseInt(digitMatch[0]);
-  // "hazaar" / "hazar" -> x1000
-  if(/hazaar|hazar|hzar|ہزار/i.test(text)){
-    const n=text.match(/(\d+)\s*(hazaar|hazar|hzar|ہزار)/i);
-    if(n) amount=parseInt(n[1])*1000;
-    else if(amount>0 && amount<1000) amount=amount*1000;
-  }
-  // "lakh" / "lac" -> x100000
-  if(/lakh|lac|لاکھ/i.test(text)){
-    const n=text.match(/(\d+)\s*(lakh|lac|لاکھ)/i);
-    if(n) amount=parseInt(n[1])*100000;
-    else if(amount>0 && amount<100) amount=amount*100000;
-  }
-
-  // 2) Kaam: udhaar (diya) ya payment (mila)?
-  let kind='diya';
-  if(/mila|milay|paise aaye|cash aaya|payment|wapas|ada|جمع|ملا|ادا/i.test(t)) kind='mila';
-  else if(/udhaar|udhar|diya|maal|likho|chadha|khata|ادھار|دیا|کھاتہ/i.test(t)) kind='diya';
-
-  // 3) Customer dhundo — har customer ka naam text mein check karo
+  // Customer dhundo (pehle — kayi commands mein chahiye)
   let cust=null;
   for(const c of custs){
     const nm=c.name.toLowerCase();
-    // naam ka pehla lafz bhi match kar sakta hai
     const first=nm.split(' ')[0];
     if(t.includes(nm) || (first.length>=3 && t.includes(first))){ cust=c; break; }
   }
-  // Urdu naam match (agar naam Urdu mein save ho)
-  if(!cust){
-    for(const c of custs){ if(text.includes(c.name)){ cust=c; break; } }
+  if(!cust){ for(const c of custs){ if(text.includes(c.name)){ cust=c; break; } } }
+
+  // ══ COMMAND 1: khata dikhao / kitna udhaar ══
+  if(/dikhao|dekho|khata kholo|kitna udhaar|kitne paise|baqaya|balance|کھاتہ دکھاؤ|کتنا/i.test(t) && !/likho|udhaar likho|hazaar|lakh|\d/.test(t)){
+    if(!cust){
+      const msg='Kis customer ka khata dikhaun? Naam saaf boliye.';
+      rtext.textContent=msg; munshiSpeak(msg); return;
+    }
+    const bal=custBalance(cust);
+    const msg = bal>0
+      ? `${cust.name} ka baqaya udhaar ${fmtRs(bal)} hai.`
+      : `${cust.name} ka koi udhaar baqi nahi — sab paid hai.`;
+    rtext.textContent=msg; munshiSpeak(msg);
+    // khata khol do
+    setTimeout(()=>{ goView('khata'); setTimeout(()=>openKhataDetail(cust.id),300); },1200);
+    return;
   }
 
-  // Ab faisla
+  // ══ COMMAND 2: udhaar / payment likho ══
+  let amount=0;
+  const digitMatch=text.replace(/[,]/g,'').match(/\d+/);
+  if(digitMatch) amount=parseInt(digitMatch[0]);
+  if(/hazaar|hazar|hzar|ہزار/i.test(text)){
+    const n=text.match(/(\d+)\s*(hazaar|hazar|hzar|ہزار)/i);
+    if(n) amount=parseInt(n[1])*1000; else if(amount>0 && amount<1000) amount=amount*1000;
+  }
+  if(/lakh|lac|لاکھ/i.test(text)){
+    const n=text.match(/(\d+)\s*(lakh|lac|لاکھ)/i);
+    if(n) amount=parseInt(n[1])*100000; else if(amount>0 && amount<100) amount=amount*100000;
+  }
+  let kind='diya';
+  if(/mila|milay|paise aaye|cash aaya|payment|wapas|ada|جمع|ملا|ادا/i.test(t)) kind='mila';
+
   if(!cust){
-    rtext.innerHTML='Customer ka naam samajh nahi aaya.<br>Boliye jaise: <b>"Bilal ko 30 hazaar udhaar likho"</b><br>(Customer pehle Khata mein hona chahiye)';
-    document.getElementById('munshiActions').innerHTML='';
-    return;
+    const msg='Customer ka naam samajh nahi aaya. Boliye jaise: Bilal ko 30 hazaar udhaar likho.';
+    rtext.innerHTML='Customer ka naam samajh nahi aaya.<br>Boliye: <b>"Bilal ko 30 hazaar udhaar likho"</b>';
+    munshiSpeak(msg); return;
   }
   if(!amount || amount<=0){
-    rtext.innerHTML=`<b>${cust.name}</b> mil gaya, par raqam samajh nahi aayi.<br>Boliye jaise: <b>"${cust.name} ko 30 hazaar udhaar"</b>`;
-    document.getElementById('munshiActions').innerHTML='';
-    return;
+    const msg=`${cust.name} mil gaya, par raqam samajh nahi aayi. Kitni raqam? Boliye jaise 30 hazaar.`;
+    rtext.innerHTML=`<b>${cust.name}</b> mil gaya, par raqam samajh nahi aayi.<br>Boliye: <b>"${cust.name} ko 30 hazaar udhaar"</b>`;
+    munshiSpeak(msg); return;
   }
   showMunshiResult({action:kind==='mila'?'payment':'udhaar', customer:cust.name, amount, note:'Munshi voice'});
 }
@@ -912,6 +926,7 @@ function showMunshiResult(obj){
   }
   const kind=obj.action==='payment'?'mila':'diya';
   rtext.innerHTML=`<b>${cust.name}</b> ke khate mein <b>${kind==='diya'?'udhaar':'payment'} ₨${Number(obj.amount).toLocaleString('en-PK')}</b>${obj.note?' ('+obj.note+')':''} — save karun?`;
+  munshiSpeak(`${cust.name} ke khate mein ${kind==='diya'?'udhaar':'payment'} ${Number(obj.amount).toLocaleString('en-PK')} rupay. Save karun?`);
   ract.innerHTML=`<button class="btn btn-gold" id="munshiConfirm" style="margin-top:4px;">✓ Ji, Save Karo</button>`;
   document.getElementById('munshiConfirm').addEventListener('click', async ()=>{
     if(!Array.isArray(cust.ledger)) cust.ledger=[];
@@ -922,6 +937,7 @@ function showMunshiResult(obj){
     document.getElementById('munshiReply').style.display='none';
     document.getElementById('munshiHeard').style.display='none';
     showToast('Munshi ne save kar diya ✓');
+    munshiSpeak('Ho gaya. Save kar diya.');
   });
 }
 
