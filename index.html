@@ -837,12 +837,31 @@ function startVoice(){
   recog.onend=()=>{ recognizing=false; document.getElementById('munshiMic').style.filter=''; document.getElementById('munshiStatus').textContent='Mic dabao aur boliye'; };
 }
 
-// Munshi bol ke jawab de (muft browser text-to-speech)
+// Munshi bol ke jawab de — Pakistani/Indian (Urdu/Hindi) desi awaaz
+let _mjVoice=null;
+function pickDesiVoice(){
+  const vs=window.speechSynthesis.getVoices()||[];
+  // pehle Urdu, phir Hindi, phir koi bhi 'ur'/'hi' wali
+  _mjVoice = vs.find(v=>/ur-PK|ur_PK/i.test(v.lang))
+          || vs.find(v=>/\bur\b/i.test(v.lang))
+          || vs.find(v=>/hi-IN|hi_IN/i.test(v.lang))
+          || vs.find(v=>/\bhi\b/i.test(v.lang))
+          || vs.find(v=>/india|pakistan|urdu|hindi/i.test(v.name))
+          || null;
+}
+if('speechSynthesis' in window){
+  pickDesiVoice();
+  window.speechSynthesis.onvoiceschanged=pickDesiVoice;
+}
 function munshiSpeak(text){
   try{
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
-    u.lang='ur-PK'; u.rate=0.95;
+    if(!_mjVoice) pickDesiVoice();
+    if(_mjVoice){ u.voice=_mjVoice; u.lang=_mjVoice.lang; }
+    else { u.lang='ur-PK'; }
+    u.rate=0.92;   // thoda aahista — saaf lage
+    u.pitch=1.0;
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
@@ -857,54 +876,69 @@ function munshiThink(text){
   const t=text.toLowerCase();
   const custs=LS.get('customers')||[];
 
-  // Customer dhundo (pehle — kayi commands mein chahiye)
+  // Urdu -> Roman transliteration (aam naam/lafz)
+  const urduMap={
+    'بلال':'bilal','حامد':'hamid','مالک':'malik','علی':'ali','احمد':'ahmed','اسلم':'aslam',
+    'کھاتہ':'khata','نکالو':'nikalo','دکھاؤ':'dikhao','دکھاو':'dikhao','ادھار':'udhaar',
+    'لکھو':'likho','ہزار':'hazaar','لاکھ':'lakh','دیا':'diya','ملا':'mila','کو':'ko','کا':'ka','روپے':'rupay'
+  };
+  let roman=text;
+  Object.keys(urduMap).forEach(u=>{ roman=roman.split(u).join(' '+urduMap[u]+' '); });
+  const tr=roman.toLowerCase();
+
+  // Customer dhundo — Urdu ya English dono taraf
   let cust=null;
   for(const c of custs){
-    const nm=c.name.toLowerCase();
+    const nm=(c.name||'').toLowerCase();
     const first=nm.split(' ')[0];
+    // English text mein
     if(t.includes(nm) || (first.length>=3 && t.includes(first))){ cust=c; break; }
+    // transliterated text mein
+    if(tr.includes(nm) || (first.length>=3 && tr.includes(first))){ cust=c; break; }
+    // Urdu naam seedha text mein
+    if(text.includes(c.name)){ cust=c; break; }
   }
-  if(!cust){ for(const c of custs){ if(text.includes(c.name)){ cust=c; break; } } }
 
-  // ══ COMMAND 1: khata dikhao / kitna udhaar ══
-  if(/dikhao|dekho|khata kholo|kitna udhaar|kitne paise|baqaya|balance|کھاتہ دکھاؤ|کتنا/i.test(t) && !/likho|udhaar likho|hazaar|lakh|\d/.test(t)){
+  // amount + kind (transliterated text pe kaam karo)
+  const work=(t+' '+tr);
+  let amount=0;
+  const digitMatch=(text.replace(/[,]/g,'')).match(/\d+/);
+  if(digitMatch) amount=parseInt(digitMatch[0]);
+  if(/hazaar|hazar|hzar/i.test(work)){
+    const n=work.match(/(\d+)\s*(hazaar|hazar|hzar)/i);
+    if(n) amount=parseInt(n[1])*1000; else if(amount>0 && amount<1000) amount=amount*1000;
+  }
+  if(/lakh|lac/i.test(work)){
+    const n=work.match(/(\d+)\s*(lakh|lac)/i);
+    if(n) amount=parseInt(n[1])*100000; else if(amount>0 && amount<100) amount=amount*100000;
+  }
+
+  // COMMAND: khata dikhao/nikalo (raqam nahi hai)
+  const wantsShow=/dikhao|dekho|nikalo|nikal|kholo|kitna|baqaya|balance/i.test(work);
+  if(wantsShow && (!amount || amount<=0)){
     if(!cust){
-      const msg='Kis customer ka khata dikhaun? Naam saaf boliye.';
+      const msg='Kis customer ka khata? Naam saaf boliye.';
       rtext.textContent=msg; munshiSpeak(msg); return;
     }
     const bal=custBalance(cust);
-    const msg = bal>0
-      ? `${cust.name} ka baqaya udhaar ${fmtRs(bal)} hai.`
-      : `${cust.name} ka koi udhaar baqi nahi — sab paid hai.`;
+    const msg = bal>0 ? `${cust.name} ka baqaya udhaar ${fmtRs(bal)} hai.` : `${cust.name} ka koi udhaar baqi nahi.`;
     rtext.textContent=msg; munshiSpeak(msg);
-    // khata khol do
     setTimeout(()=>{ goView('khata'); setTimeout(()=>openKhataDetail(cust.id),300); },1200);
     return;
   }
 
-  // ══ COMMAND 2: udhaar / payment likho ══
-  let amount=0;
-  const digitMatch=text.replace(/[,]/g,'').match(/\d+/);
-  if(digitMatch) amount=parseInt(digitMatch[0]);
-  if(/hazaar|hazar|hzar|ہزار/i.test(text)){
-    const n=text.match(/(\d+)\s*(hazaar|hazar|hzar|ہزار)/i);
-    if(n) amount=parseInt(n[1])*1000; else if(amount>0 && amount<1000) amount=amount*1000;
-  }
-  if(/lakh|lac|لاکھ/i.test(text)){
-    const n=text.match(/(\d+)\s*(lakh|lac|لاکھ)/i);
-    if(n) amount=parseInt(n[1])*100000; else if(amount>0 && amount<100) amount=amount*100000;
-  }
+  // COMMAND: udhaar/payment likho
   let kind='diya';
-  if(/mila|milay|paise aaye|cash aaya|payment|wapas|ada|جمع|ملا|ادا/i.test(t)) kind='mila';
+  if(/mila|milay|payment|wapas|ada|jama/i.test(work)) kind='mila';
 
   if(!cust){
     const msg='Customer ka naam samajh nahi aaya. Boliye jaise: Bilal ko 30 hazaar udhaar likho.';
-    rtext.innerHTML='Customer ka naam samajh nahi aaya.<br>Boliye: <b>"Bilal ko 30 hazaar udhaar likho"</b>';
+    rtext.innerHTML='Customer ka naam samajh nahi aaya.<br>Boliye: <b>"Bilal ko 30 hazaar udhaar likho"</b><br><small>(Naam waisa bolein jaisa Khata mein save hai)</small>';
     munshiSpeak(msg); return;
   }
   if(!amount || amount<=0){
-    const msg=`${cust.name} mil gaya, par raqam samajh nahi aayi. Kitni raqam? Boliye jaise 30 hazaar.`;
-    rtext.innerHTML=`<b>${cust.name}</b> mil gaya, par raqam samajh nahi aayi.<br>Boliye: <b>"${cust.name} ko 30 hazaar udhaar"</b>`;
+    const msg=`${cust.name} mil gaya. Kitni raqam? Boliye jaise 30 hazaar.`;
+    rtext.innerHTML=`<b>${cust.name}</b> mil gaya, raqam boliye.<br><b>"${cust.name} ko 30 hazaar udhaar"</b>`;
     munshiSpeak(msg); return;
   }
   showMunshiResult({action:kind==='mila'?'payment':'udhaar', customer:cust.name, amount, note:'Munshi voice'});
