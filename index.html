@@ -1242,7 +1242,7 @@ function bindStockBilling(){
     if(pickMode==='cust'){ bill.custId=id; } else { addBillLine(id); }
     document.getElementById('pickModal').classList.add('hidden');
     renderBill();
-  });
+  });C
   // product card click -> quick restock (cloud)
   document.getElementById('prodRows').addEventListener('click', async e=>{
     const c=e.target.closest('[data-prod]'); if(!c) return;
