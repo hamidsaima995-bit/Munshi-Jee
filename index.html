@@ -820,39 +820,21 @@ function startVoice(){
   if(!SR){ document.getElementById('munshiStatus').textContent='Yeh browser voice support nahi karta — Chrome istemal karein'; return; }
   if(recognizing){ recog && recog.stop(); return; }
   recog = new SR();
-  recog.lang='hi-IN';
-  recog.interimResults=true;
-  recog.continuous=false;
-  recog.maxAlternatives=3;
+  recog.lang='ur-PK';
+  recog.interimResults=false;
+  recog.maxAlternatives=1;
   recognizing=true;
-  let finalText='';
   document.getElementById('munshiMic').style.filter='drop-shadow(0 0 20px rgba(231,181,60,.8))';
   document.getElementById('munshiStatus').textContent='Sun raha hoon... boliye 🎤';
-  try{ recog.start(); }catch(e){}
+  recog.start();
   recog.onresult=(e)=>{
-    let interim='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal) finalText+=e.results[i][0].transcript;
-      else interim+=e.results[i][0].transcript;
-    }
-    const show=(finalText||interim).trim();
-    if(show){
-      document.getElementById('munshiHeard').style.display='block';
-      document.getElementById('munshiText').textContent=show;
-    }
+    const text=e.results[0][0].transcript;
+    document.getElementById('munshiHeard').style.display='block';
+    document.getElementById('munshiText').textContent=text;
+    munshiThink(text);
   };
-  recog.onerror=(ev)=>{
-    if(ev.error==='no-speech'){ document.getElementById('munshiStatus').textContent='Kuch suna nahi — mic dabao aur foran boliye'; }
-    else if(ev.error==='not-allowed'){ document.getElementById('munshiStatus').textContent='Mic ki ijazat dein — address bar ke taale se'; }
-    else{ document.getElementById('munshiStatus').textContent='Dobara try karein'; }
-  };
-  recog.onend=()=>{
-    recognizing=false;
-    document.getElementById('munshiMic').style.filter='';
-    document.getElementById('munshiStatus').textContent='Mic dabao aur boliye';
-    const t=(finalText||document.getElementById('munshiText').textContent||'').trim();
-    if(t && t.length>1){ munshiThink(t); }
-  };
+  recog.onerror=()=>{ document.getElementById('munshiStatus').textContent='Awaaz samajh nahi aayi — dobara try karein'; };
+  recog.onend=()=>{ recognizing=false; document.getElementById('munshiMic').style.filter=''; document.getElementById('munshiStatus').textContent='Mic dabao aur boliye'; };
 }
 
 // Munshi bol ke jawab de — Pakistani/Indian (Urdu/Hindi) desi awaaz
@@ -905,10 +887,33 @@ function munshiThink(text){
     'واٹس ایپ':'whatsapp','واٹساپ':'whatsapp','یاد':'yaad','روانہ':'rawana','پہنچ':'pohnch',
     'سیل':'sale','آج':'aaj','کل':'total','گاہک':'customer','پروڈکٹ':'product','لاگ آوٹ':'logout','ہوم':'home'
   };
+  // Hindi (Devanagari) -> Roman  (Chrome voice hi-IN mein likhta hai, isay Roman karo)
+  const hindiWords={
+    'बिलाल':'bilal','बलाल':'bilal','हामिद':'hamid','हमीद':'hamid','मलिक':'malik','मालिक':'malik',
+    'अली':'ali','अहमद':'ahmed','असलम':'aslam',
+    'खाता':'khata','खाते':'khata','उधार':'udhaar','उधर':'udhaar','उदार':'udhaar',
+    'दिखाओ':'dikhao','दिखाउ':'dikhao','निकालो':'nikalo','खोलो':'kholo','देखो':'dekho',
+    'लिखो':'likho','लिख':'likho','हज़ार':'hazaar','हजार':'hazaar','लाख':'lakh',
+    'दिया':'diya','मिला':'mila','मिल':'mila','को':'ko','का':'ka','के':'ke','रुपये':'rupay','रुपए':'rupay',
+    'स्टॉक':'stock','स्टाक':'stock','बिल्टी':'bilty','बिक्री':'bikri','कॉल':'call','फोन':'phone',
+    'व्हाट्सएप':'whatsapp','वाट्सएप':'whatsapp','व्हाट्सऐप':'whatsapp','संदेश':'message','मैसेज':'message',
+    'याद':'yaad','रवाना':'rawana','पहुंच':'pohnch','पहुँच':'pohnch',
+    'सेल':'sale','आज':'aaj','कुल':'total','ग्राहक':'customer','प्रोडक्ट':'product','माल':'maal',
+    'लॉगआउट':'logout','होम':'home','तीन':'3','सौ':'sau','पांच':'5','दस':'10','बीस':'20','तीस':'30'
+  };
+  const hindiDigits={'०':'0','१':'1','२':'2','३':'3','४':'4','५':'5','६':'6','७':'7','८':'8','९':'9'};
   let roman=text;
   Object.keys(urduMap).forEach(u=>{ roman=roman.split(u).join(' '+urduMap[u]+' '); });
+  Object.keys(hindiWords).forEach(h=>{ roman=roman.split(h).join(' '+hindiWords[h]+' '); });
+  Object.keys(hindiDigits).forEach(h=>{ roman=roman.split(h).join(hindiDigits[h]); });
+  roman=roman.replace(/\s+/g,' ').trim();
   const tr=roman.toLowerCase();
   const work=(t+' '+tr);
+  // Roman mein dikhao (Hindi script hataao)
+  if(roman && roman!==text){
+    const heardEl=document.getElementById('munshiText');
+    if(heardEl) heardEl.textContent=roman;
+  }
 
   // Customer dhundo
   let cust=null;
@@ -975,10 +980,14 @@ function munshiThink(text){
     setTimeout(()=>{ const u=isMobile?`whatsapp://send?phone=${phoneOf(cust)}&text=${encodeURIComponent(msg)}`:`https://wa.me/${phoneOf(cust)}?text=${encodeURIComponent(msg)}`; window.open(u,'_blank'); },1000); return;
   }
 
-  // amount
+  // amount  (roman se parho — Hindi already convert ho chuka)
   let amount=0;
-  const digitMatch=(text.replace(/[,]/g,'')).match(/\d+/);
+  const digitMatch=(roman.replace(/[,]/g,'')).match(/\d+/);
   if(digitMatch) amount=parseInt(digitMatch[0]);
+  if(/sau\b/i.test(work)){
+    const n=work.match(/(\d+)\s*sau/i);
+    if(n) amount=parseInt(n[1])*100; else if(amount>0&&amount<100) amount*=100;
+  }
   if(/hazaar|hazar|hzar/i.test(work)){
     const n=work.match(/(\d+)\s*(hazaar|hazar|hzar)/i);
     if(n) amount=parseInt(n[1])*1000; else if(amount>0&&amount<1000) amount*=1000;
