@@ -820,21 +820,39 @@ function startVoice(){
   if(!SR){ document.getElementById('munshiStatus').textContent='Yeh browser voice support nahi karta — Chrome istemal karein'; return; }
   if(recognizing){ recog && recog.stop(); return; }
   recog = new SR();
-  recog.lang='ur-PK';
-  recog.interimResults=false;
-  recog.maxAlternatives=1;
+  recog.lang='hi-IN';
+  recog.interimResults=true;
+  recog.continuous=false;
+  recog.maxAlternatives=3;
   recognizing=true;
+  let finalText='';
   document.getElementById('munshiMic').style.filter='drop-shadow(0 0 20px rgba(231,181,60,.8))';
   document.getElementById('munshiStatus').textContent='Sun raha hoon... boliye 🎤';
-  recog.start();
+  try{ recog.start(); }catch(e){}
   recog.onresult=(e)=>{
-    const text=e.results[0][0].transcript;
-    document.getElementById('munshiHeard').style.display='block';
-    document.getElementById('munshiText').textContent=text;
-    munshiThink(text);
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) finalText+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    const show=(finalText||interim).trim();
+    if(show){
+      document.getElementById('munshiHeard').style.display='block';
+      document.getElementById('munshiText').textContent=show;
+    }
   };
-  recog.onerror=()=>{ document.getElementById('munshiStatus').textContent='Awaaz samajh nahi aayi — dobara try karein'; };
-  recog.onend=()=>{ recognizing=false; document.getElementById('munshiMic').style.filter=''; document.getElementById('munshiStatus').textContent='Mic dabao aur boliye'; };
+  recog.onerror=(ev)=>{
+    if(ev.error==='no-speech'){ document.getElementById('munshiStatus').textContent='Kuch suna nahi — mic dabao aur foran boliye'; }
+    else if(ev.error==='not-allowed'){ document.getElementById('munshiStatus').textContent='Mic ki ijazat dein — address bar ke taale se'; }
+    else{ document.getElementById('munshiStatus').textContent='Dobara try karein'; }
+  };
+  recog.onend=()=>{
+    recognizing=false;
+    document.getElementById('munshiMic').style.filter='';
+    document.getElementById('munshiStatus').textContent='Mic dabao aur boliye';
+    const t=(finalText||document.getElementById('munshiText').textContent||'').trim();
+    if(t && t.length>1){ munshiThink(t); }
+  };
 }
 
 // Munshi bol ke jawab de — Pakistani/Indian (Urdu/Hindi) desi awaaz
